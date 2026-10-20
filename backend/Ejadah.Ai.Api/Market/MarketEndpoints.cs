@@ -6,7 +6,7 @@ namespace Ejadah.Ai.Api.Market;
 
 public sealed record CityDto(int Id, string Name, string Region);
 public sealed record DistrictDto(int Id, string Name, long NMarketDeals);
-public sealed record MetaDto(DateTime DataAsOf, long MarketDeals, long AllDeals);
+public sealed record MetaDto(DateOnly DataAsOf, long MarketDeals, long AllDeals);
 
 public static class MarketEndpoints
 {
