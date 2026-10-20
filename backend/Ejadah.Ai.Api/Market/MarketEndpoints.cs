@@ -1,3 +1,4 @@
+using Ejadah.Ai.Api.Auth;
 using Ejadah.Ai.Api.Estimates;
 using Ejadah.Ai.Api.Infrastructure;
 
@@ -11,7 +12,7 @@ public static class MarketEndpoints
 {
     public static void MapMarketEndpoints(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api").WithTags("Market");
+        var g = app.MapGroup("/api").WithTags("Market").RequireAuthorization("authenticated");
 
         g.MapGet("/meta", async (Db db, CancellationToken ct) =>
             Results.Ok(await db.SingleOrDefaultAsync<MetaDto>(
@@ -41,6 +42,6 @@ public static class MarketEndpoints
                 "select year, round(ppm_median::numeric) as ppm_median, n_deals from market.mv_district_year where district_id = @districtId and type_group = @type order by year",
                 new { districtId, type }, ct);
             return Results.Ok(rows.Select(r => new { r.Year, r.PpmMedian, r.NDeals }));
-        }).WithSummary("منحنى سعر المتر السنوي لحي ونوع");
+        }).RequireAuthorization(Capabilities.MarketHistory).WithSummary("منحنى سعر المتر السنوي لحي ونوع (مستثمر/مطوّر)");
     }
 }
