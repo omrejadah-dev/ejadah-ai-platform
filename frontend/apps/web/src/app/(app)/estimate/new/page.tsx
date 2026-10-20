@@ -24,9 +24,12 @@ function NewEstimateInner() {
   const initialType = (params.get("type") as PropertyType | null) ?? "land";
 
   const [type, setType] = useState<PropertyType>(["land", "villa", "apartment", "building"].includes(initialType) ? initialType : "land");
-  const [cityId, setCityId] = useState<number | "">("");
-  const [district, setDistrict] = useState<District | null>(null);
-  const [districtQ, setDistrictQ] = useState("");
+  const preCity = Number(params.get("cityId")) || "";
+  const preDistrict = Number(params.get("districtId")) && params.get("districtName")
+    ? { id: Number(params.get("districtId")), name: params.get("districtName")!, nMarketDeals: 0 } : null;
+  const [cityId, setCityId] = useState<number | "">(preCity);
+  const [district, setDistrict] = useState<District | null>(preDistrict);
+  const [districtQ, setDistrictQ] = useState(preDistrict?.name ?? "");
   const [planNo, setPlanNo] = useState("");
   const [plotNo, setPlotNo] = useState("");
   const [area, setArea] = useState("");
@@ -102,7 +105,7 @@ function NewEstimateInner() {
               {cities.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </FormGroup>
-          <FormGroup label="الحي" htmlFor="district" required hint={district ? `${district.name} · ${district.nMarketDeals.toLocaleString("en-US")} صفقة سوقية` : "اكتب أول حروف الحي واختر من القائمة"}>
+          <FormGroup label="الحي" htmlFor="district" required hint={district ? (district.nMarketDeals ? `${district.name} · ${district.nMarketDeals.toLocaleString("en-US")} صفقة سوقية` : district.name) : "اكتب أول حروف الحي واختر من القائمة"}>
             <div className="relative">
               <Input id="district" value={district ? district.name : districtQ} placeholder="مثال: الصفا"
                 onChange={(e) => { setDistrict(null); setDistrictQ(e.target.value); }} autoComplete="off" />

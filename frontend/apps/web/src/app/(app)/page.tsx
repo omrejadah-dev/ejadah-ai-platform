@@ -6,6 +6,7 @@ import { Badge, Card, CardBody, CardHeader } from "@platform/ui-kit";
 import { api, CONFIDENCE_LABEL, fmt, TYPE_LABEL, type EstimateResult, type PropertyType, type ValuationSummary } from "@/lib/api";
 import { useMe } from "@/providers/MeProvider";
 import { confidenceTone } from "@/lib/ui";
+import { MarketMap } from "@/components/MarketMap";
 
 const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
   { type: "land", icon: "ti-map-2", hint: "قطعة أرض سكنية أو تجارية" },
@@ -28,6 +29,8 @@ export default function HomePage() {
           {meta.data ? ` البيانات حتى ${meta.data.dataAsOf.slice(0, 10)} من ${fmt(meta.data.marketDeals)} صفقة سوقية.` : ""}
         </p>
       </div>
+
+      <MarketMap />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {TYPES.map((t) => (

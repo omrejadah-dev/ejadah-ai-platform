@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
+builder.Services.AddMemoryCache();
 builder.Services.AddEjadahDatabase(builder.Configuration);
 builder.Services.AddEjadahAuth(builder.Configuration, builder.Environment);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
@@ -36,6 +37,7 @@ app.MapGet("/ready", async (Db db, CancellationToken ct) =>
 
 app.MapAuthEndpoints();
 app.MapMarketEndpoints();
+app.MapMapEndpoints();
 app.MapEstimateEndpoints();
 
 app.Run();

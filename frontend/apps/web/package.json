@@ -13,12 +13,14 @@
     "@platform/ui-kit": "*",
     "@tabler/icons-webfont": "^3.31.0",
     "@tanstack/react-query": "^5.100.11",
+    "leaflet": "^1.9.4",
     "next": "16.3.3",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.20",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

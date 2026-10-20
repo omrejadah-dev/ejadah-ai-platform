@@ -4,6 +4,7 @@ const apiUpstream = process.env.API_UPSTREAM_URL ?? "http://127.0.0.1:5020";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   transpilePackages: ["@platform/ui-kit"],
   experimental: { optimizePackageImports: ["@platform/ui-kit"] },
   // Same-origin API: the browser talks to /api/* on :3000 and Next proxies to ASP.NET (cookies stay first-party).
