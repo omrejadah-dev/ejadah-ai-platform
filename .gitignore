@@ -1,0 +1,18 @@
+# data: raw Excel and the 738 MB consolidated CSV stay out of git
+property deals/
+data/consolidated/all_deals.csv
+laws.zip
+*.docx
+*.pdf
+!laws/**/*.pdf
+# build
+node_modules/
+.next/
+bin/
+obj/
+*.user
+.env
+.env.*
+!.env.example
+pgdata/
+__pycache__/

@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ejadah-ai-postgres
+    environment:
+      POSTGRES_USER: ejadah
+      POSTGRES_PASSWORD: ejadah_dev
+      POSTGRES_DB: ejadah_ai
+    ports:
+      - "5434:5432"
+    volumes:
+      - ejadah_ai_pgdata:/var/lib/postgresql/data
+      - ../data:/data:ro
+    command: >
+      postgres -c shared_buffers=1GB -c work_mem=256MB -c maintenance_work_mem=1GB
+               -c max_wal_size=4GB -c checkpoint_timeout=30min
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ejadah -d ejadah_ai"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  ejadah_ai_pgdata:
