@@ -172,7 +172,8 @@ land: قطعة أرض، أرض فضاء، أرض مسورة · villa: فيلا،
   - الحدود من github.com/homaily/Saudi-Arabia-Regions-Cities-and-Districts (مفتوحة) → `tools/geo/build_district_shapes.py` → `data/geo/district_shapes.csv` → `db/migrations/008_geo.sql`
   - مطابقة آلية فقط بالاسم الموحّد: جدة 139 حياً تغطي 77.7% من الصفقات، الرياض 178 حياً تغطي 88%. ما لا يطابق لا يظهر على الخريطة (قرار عمر)
   - Leaflet + بلاطات OpenStreetMap (لا مفتاح). **قبل الإنتاج:** مزوّد بلاطات مستضاف أو ذاتي، فسياسة OSM لا تسمح بحركة إنتاج كبيرة
-  - API: `GET /api/cities/{id}/map?type=` (GeoJSON، مخزّن 6 ساعات) ، `GET /api/districts/{id}/summary?type=` (0.2 ث)
+  - **شريط السنين 2010–2026** مع زر تشغيل (سنة كل ثانية) ومقياس ألوان ثابت لكل السنين؛ لوحة الحي تُبرز السنة المختارة. التسعير نفسه يبقى على الصفقات الحديثة
+  - API: `GET /api/cities/{id}/map?type=` (GeoJSON فيه قيم كل سنة + `scale`، مخزّن 6 ساعات) ، `GET /api/districts/{id}/summary?type=` (0.2 ث)
 - [ ] شاشة الملف التعريفي ومقاعد المنشأة (تنتظر نقاط النهاية في ب)
 - [ ] أيقونة النصائح (تنتظر د) وزر الطباعة (تنتظر و)
 

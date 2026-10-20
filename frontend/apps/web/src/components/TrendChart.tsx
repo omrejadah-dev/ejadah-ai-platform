@@ -3,7 +3,7 @@
 import { fmt, type TrendPoint } from "@/lib/api";
 
 /** Small dependency-free SVG line chart: yearly median price per m² with deal counts as bars. RTL-safe (years run right→left). */
-export function TrendChart({ district, city, height = 180 }: { district?: TrendPoint[]; city?: TrendPoint[]; height?: number }) {
+export function TrendChart({ district, city, height = 180, highlightYear }: { district?: TrendPoint[]; city?: TrendPoint[]; height?: number; highlightYear?: number }) {
   const d = (district ?? []).filter((p) => p.ppm_median > 0);
   const c = (city ?? []).filter((p) => p.ppm_median > 0);
   const years = Array.from(new Set([...d, ...c].map((p) => p.year))).sort((a, b) => a - b);
@@ -32,7 +32,10 @@ export function TrendChart({ district, city, height = 180 }: { district?: TrendP
         ))}
         {c.length ? <path d={path(c)} fill="none" stroke="var(--text-3)" strokeWidth="1.5" strokeDasharray="5 4" /> : null}
         {d.length ? <path d={path(d)} fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" /> : null}
-        {d.map((p) => <circle key={p.year} cx={x(p.year)} cy={y(p.ppm_median)} r="3" fill="var(--ink)" />)}
+        {highlightYear && highlightYear >= years[0] && highlightYear <= years[years.length - 1] ? (
+          <line x1={x(highlightYear)} x2={x(highlightYear)} y1={padT} y2={H - padB} stroke="var(--gold)" strokeWidth="2" />
+        ) : null}
+        {d.map((p) => <circle key={p.year} cx={x(p.year)} cy={y(p.ppm_median)} r={p.year === highlightYear ? 5.5 : 3} fill={p.year === highlightYear ? "var(--gold)" : "var(--ink)"} />)}
         {years.filter((_, i) => i % Math.ceil(years.length / 9) === 0 || i === years.length - 1).map((yr) => (
           <text key={yr} x={x(yr)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--text-2)">{yr}</text>
         ))}

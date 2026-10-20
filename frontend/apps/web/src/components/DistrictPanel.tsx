@@ -13,7 +13,7 @@ type Summary = {
   latest: { date: string; type: PropertyType; plan: string | null; plot: string | null; area: number; ppm: number; price: number }[];
 };
 
-export function DistrictPanel({ districtId, type, onType, onClose }: { districtId: number; type: PropertyType; onType: (t: PropertyType) => void; onClose: () => void }) {
+export function DistrictPanel({ districtId, type, onType, onClose, highlightYear }: { districtId: number; type: PropertyType; onType: (t: PropertyType) => void; onClose: () => void; highlightYear?: number }) {
   const q = useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
   if (q.isLoading || !q.data) return <div className="grid h-40 place-items-center"><Spinner /></div>;
   const s = q.data;
@@ -43,7 +43,7 @@ export function DistrictPanel({ districtId, type, onType, onClose }: { districtI
 
       <div>
         <div className="mb-1 text-sm font-bold text-heading">اتجاه سعر المتر · {TYPE_LABEL[type]}</div>
-        <TrendChart district={s.trend} height={150} />
+        <TrendChart district={s.trend} height={150} highlightYear={highlightYear} />
       </div>
 
       <div>

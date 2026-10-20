@@ -18,7 +18,7 @@ public static class MapEndpoints
         {
             type ??= "land";
             if (!EstimateRequest.TypeGroups.Contains(type)) return Results.BadRequest("type must be land|villa|apartment|building");
-            var json = await cache.GetOrCreateAsync($"map:{cityId}:{type}", async e =>
+            var json = await cache.GetOrCreateAsync($"map:v2:{cityId}:{type}", async e =>
             {
                 e.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6);
                 return await db.ScalarAsync<string>(
@@ -36,9 +36,23 @@ public static class MapEndpoints
                     ),
                     totals as (
                       select district_id, sum(n_deals) as n_all from market.mv_district_month where city_id = @cityId group by district_id
+                    ),
+                    yearly as (   -- {"2010":[ppm, n], ...}; ppm only when the year has >= 3 deals
+                      select district_id,
+                             jsonb_object_agg(year::text, jsonb_build_array(case when n_deals >= 3 then round(ppm_median::numeric) end, n_deals)) as y
+                      from market.mv_district_year where city_id = @cityId and type_group = @type group by district_id
+                    ),
+                    scale as (    -- one colour scale for every year so colours compare across time
+                      select (select array_agg(round(v::numeric)) from unnest(percentile_cont(array[1/6.0, 2/6.0, 3/6.0, 4/6.0, 5/6.0]) within group (order by ppm_median)) v) as ppm,
+                             (select array_agg(round(v::numeric)) from unnest(percentile_cont(array[1/6.0, 2/6.0, 3/6.0, 4/6.0, 5/6.0]) within group (order by n_deals)) v) as cnt,
+                             min(year) as y0, max(year) as y1
+                      from market.mv_district_year y
+                      where y.city_id = @cityId and y.type_group = @type and y.n_deals >= 3
+                        and y.district_id in (select district_id from market.district_shapes)
                     )
                     select jsonb_build_object(
                       'type', 'FeatureCollection',
+                      'scale', (select jsonb_build_object('ppm', ppm, 'count', cnt, 'firstYear', y0, 'lastYear', y1) from scale),
                       'features', coalesce(jsonb_agg(jsonb_build_object(
                          'type', 'Feature',
                          'geometry', s.geometry,
@@ -47,11 +61,13 @@ public static class MapEndpoints
                             'center', jsonb_build_array(s.center_lat, s.center_lng),
                             'ppm', round(st.ppm_median::numeric),
                             'n12', coalesce(st.n_12m, 0), 'n24', coalesce(st.n_24m, 0),
-                            'nAll', coalesce(t.n_all, 0)))), '[]'::jsonb))::text
+                            'nAll', coalesce(t.n_all, 0),
+                            'y', coalesce(yr.y, '{}'::jsonb)))), '[]'::jsonb))::text
                     from market.district_shapes s
                     join market.districts d on d.id = s.district_id and d.city_id = @cityId
                     left join stats st on st.district_id = d.id
                     left join totals t on t.district_id = d.id
+                    left join yearly yr on yr.district_id = d.id
                     """, new { cityId, type }, ct);
             });
             return Results.Content(json ?? """{"type":"FeatureCollection","features":[]}""", "application/json");
