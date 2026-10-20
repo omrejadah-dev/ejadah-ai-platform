@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Spinner } from "@platform/ui-kit";
-import { TrendChart } from "@/components/TrendChart";
 import { api, fmt, TYPE_LABEL, type PropertyType, type TrendPoint } from "@/lib/api";
+import { TrendChart } from "@/components/TrendChart";
 
-type Summary = {
+export type Summary = {
   id: number; name: string; cityId: number; city: string; dataAsOf: string;
   types: { type: PropertyType; n12: number; ppm: number | null }[];
   trend: TrendPoint[];
   latest: { date: string; type: PropertyType; plan: string | null; plot: string | null; area: number; ppm: number; price: number }[];
 };
 
-export function DistrictPanel({ districtId, type, onClose, highlightYear }: { districtId: number; type: PropertyType; onType?: (t: PropertyType) => void; onClose: () => void; highlightYear?: number }) {
-  const q = useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
+export const useDistrictSummary = (districtId: number, type: PropertyType) =>
+  useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
+
+export function DistrictPanel({ districtId, type, onClose }: { districtId: number; type: PropertyType; onType?: (t: PropertyType) => void; onClose: () => void; highlightYear?: number }) {
+  const q = useDistrictSummary(districtId, type);
   if (q.isLoading || !q.data) return <div className="grid h-40 place-items-center"><Spinner /></div>;
   const s = q.data;
   const estimateHref = `/estimate/new?type=${type}&cityId=${s.cityId}&districtId=${s.id}&districtName=${encodeURIComponent(s.name)}`;
@@ -41,10 +44,6 @@ export function DistrictPanel({ districtId, type, onClose, highlightYear }: { di
         );
       })()}
 
-      <div>
-        <div className="mb-1 text-sm font-bold text-heading">اتجاه سعر المتر · {TYPE_LABEL[type]}</div>
-        <TrendChart district={s.trend} height={150} highlightYear={highlightYear} />
-      </div>
 
       <div>
         <div className="mb-1 text-sm font-bold text-heading">آخر صفقات {TYPE_LABEL[type]}</div>
@@ -64,6 +63,21 @@ export function DistrictPanel({ districtId, type, onClose, highlightYear }: { di
       </div>
 
       <Link href={estimateHref} className="block"><Button variant="primary" className="w-full"><i className="ti ti-calculator" aria-hidden /> سعّر عقاراً في هذا الحي</Button></Link>
+    </div>
+  );
+}
+
+/** Wide trend chart shown under the map for the selected district. */
+export function DistrictTrend({ districtId, type, highlightYear }: { districtId: number; type: PropertyType; highlightYear?: number }) {
+  const q = useDistrictSummary(districtId, type);
+  if (!q.data) return <div className="grid h-[260px] place-items-center"><Spinner /></div>;
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-sm font-bold text-heading">اتجاه سعر المتر · {TYPE_LABEL[type]} · {q.data.name}</div>
+        <div className="text-[11px] text-text-3">وسيط سنوي من صفقات وزارة العدل</div>
+      </div>
+      <TrendChart district={q.data.trend} height={240} highlightYear={highlightYear} />
     </div>
   );
 }
