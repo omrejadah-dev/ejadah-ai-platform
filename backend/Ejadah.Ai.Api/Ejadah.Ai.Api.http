@@ -1,0 +1,6 @@
+@Ejadah.Ai.Api_HostAddress = http://localhost:5020
+
+GET {{Ejadah.Ai.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
