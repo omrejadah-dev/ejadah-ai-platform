@@ -132,7 +132,6 @@ export function MarketMap() {
             className="h-1.5 flex-1 cursor-pointer accent-[var(--ink)]" aria-label="السنة" />
           <span className="text-[11px] font-bold text-text-3">{last}</span>
         </div>
-        <span className="min-w-[96px] rounded-lg bg-navy-soft px-3 py-1.5 text-center text-sm font-extrabold text-heading">{periodLabel}</span>
       </div>
 
       <div className={cn("grid items-start gap-0", selected && "lg:grid-cols-[1fr_380px]")}>
