@@ -140,21 +140,25 @@ land: قطعة أرض، أرض فضاء، أرض مسورة · villa: فيلا،
 - [x] محرك التسعير واختباره
 - [x] أول commit
 
-### المرحلة ب — الخلفية ASP.NET Core
-- [ ] `backend/Ejadah.Ai.sln`: مشروع Api واحد معياري (Identity / Market / App / Legal) + Tests
-- [ ] اتصال Npgsql + EF Core لمخططي `identity` و`app` فقط؛ `market` عبر Dapper/SQL مباشر
-- [ ] نقاط النهاية الأولى:
-  - `GET /api/cities` ، `GET /api/cities/{id}/districts?q=`
-  - `POST /api/estimates` → `market.estimate_price` ويحفظ في `app.valuations`
-  - `GET /api/estimates/{id}`
-- [ ] الدخول: `POST /api/auth/otp` (ISmsSender وهمي يطبع الرمز) ، `POST /api/auth/verify` ، `refresh` ، `logout`
-  - JWT 15 دقيقة + رمز تجديد 30 يوماً في كوكي HttpOnly
-  - **جلسة واحدة لكل مقعد:** الدخول الجديد يُبطل جلسات المقعد السابقة
-- [ ] جداول `identity`: accounts, seats, users, otp_codes, sessions, plans_catalog
-- [ ] الأدوار والقدرات (Capability policies) حسب الجدول 4.2 في المواصفة
-- [ ] `app`: valuations, reports, broker_profiles
-- [ ] `ops`: audit_log, ai_calls
-- [ ] Swagger + اختبارات تكامل على حاوية Postgres
+### المرحلة ب — الخلفية ASP.NET Core (جارية، بدأت 2026-10-20)
+- [x] `backend/Ejadah.Ai.slnx` + مشروع `Ejadah.Ai.Api` (.NET 10، Minimal APIs، Dapper + Npgsql، Scalar على `/scalar`)
+- [x] `GET /api/meta` ، `GET /api/cities` ، `GET /api/cities/{id}/districts?q=` ، `GET /api/districts/{id}/history?type=`
+- [x] `POST /api/estimates` (تحقق النموذج 5.2 → `market.estimate_price` → حفظ في `app.valuations`) ، `GET /api/estimates/{id}` ، `GET /api/estimates` (تسعيراتي)
+- [x] الدخول: `POST /api/auth/otp` ، `verify` ، `refresh` ، `logout` ، `GET /api/auth/me`
+  - SMS وهمي (`DummySmsSender` يطبع الرمز في السجل، و`Sms:EchoCodeInResponse=true` يعيده في الرد أثناء التطوير)
+  - JWT 15 دقيقة في كوكي `ejd_access` + رمز تجديد دوّار 30 يوماً (منزلق) في كوكي `ejd_refresh` (HttpOnly)
+  - **جلسة واحدة لكل مقعد:** الدخول الجديد يُبطل السابقة بسبب `replaced`؛ التجديد من الجهاز القديم يرجع `401 session_replaced` برسالة «تم تسجيل الدخول من جهاز آخر»
+  - 3 رموز خاطئة → قفل 15 دقيقة؛ 5 رموز في الساعة كحد
+- [x] `identity`: plans_catalog, accounts, seats, admins, otp_codes, sessions ؛ `ops.audit_log`
+- [x] الأدوار والقدرات (سياسات تفويض باسم القدرة، جدول 4.2)؛ الحد اليومي للتسعيرات من الباقة (`429 daily_limit`)
+- [x] حسابات تجريبية (الرموز تظهر في سجل الخادم):
+  `0500000001` وسيط · `0500000002` مدير مكتب · `0500000003` موظف مكتب · `0500000004` مستثمر · `0500000005` مطوّر · `0500000009` مدير نظام
+- [ ] إدارة المقاعد للمكتب (`/api/seats`)
+- [ ] الملف التعريفي للوسيط (`app.broker_profiles`)
+- [ ] لوحة المدير (`/api/admin/*`)
+- [ ] اختبارات تكامل على حاوية Postgres
+
+**تشغيل الخلفية:** `cd backend/Ejadah.Ai.Api && dotnet run` → http://localhost:5020 (الوثائق التفاعلية: /scalar).
 
 ### المرحلة ج — الواجهة Next.js
 - [ ] تهيئة Next.js 16 + Tailwind + TanStack Query + `@platform/ui-kit` (نسخ الحزمة أو ربطها كـ workspace)
@@ -208,4 +212,4 @@ land: قطعة أرض، أرض فضاء، أرض مسورة · villa: فيلا،
 
 ## 7. سجل التغييرات
 - **2026-10-19:** تحليل الاجتماع والبيانات، المواصفة التفصيلية (36ص)، الوثيقة المختصرة (11ص)، مكتبة الأنظمة (45 ملفاً).
-- **2026-10-20:** المستودع، Docker/PostgreSQL، الهجرات 001–005، محرك التسعير واختباره، هذا الملف.
+- **2026-10-20:** المستودع، Docker/PostgreSQL، الهجرات 001–005، محرك التسعير واختباره، هذا الملف. ثم الخلفية: الهجرتان 006–007، نقاط المدن والأحياء والتسعير، الدخول برمز SMS وهمي، الجلسة الواحدة، القدرات، سجل التدقيق.
