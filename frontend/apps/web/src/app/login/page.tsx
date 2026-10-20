@@ -13,11 +13,6 @@ const REASON_TEXT: Record<string, string> = {
   no_session: "سجّل الدخول للمتابعة.",
 };
 
-const STATS = [
-  { v: "4.6M", l: "صفقة من وزارة العدل" },
-  { v: "17", l: "سنة من 2010 إلى 2026" },
-  { v: "< 1 ث", l: "لتسعير العقار" },
-];
 
 const input =
   "h-[52px] w-full rounded-xl border border-border-md bg-surface-2 px-4 text-[16px] text-text outline-none transition placeholder:text-text-3 focus:border-gold focus:bg-surface focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--gold)_18%,transparent)]";
@@ -134,14 +129,6 @@ function LoginInner() {
             <p className="mt-4 text-[15.5px] leading-[1.9] text-white/70">
               كل حي على الخريطة ملوّن بوسيط سعر المتر من صفقات وزارة العدل. أدخل العقار، واحصل على السعر بنطاقه ودرجة ثقته والصفقات التي بُني عليها.
             </p>
-            <dl className="mt-8 grid grid-cols-3 gap-3">
-              {STATS.map((s) => (
-                <div key={s.l} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-sm">
-                  <dt className="text-[22px] font-extrabold text-white" dir="ltr">{s.v}</dt>
-                  <dd className="mt-0.5 text-[11.5px] leading-snug text-white/60">{s.l}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
         </section>
 
