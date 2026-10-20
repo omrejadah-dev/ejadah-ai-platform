@@ -13,7 +13,7 @@ type Summary = {
   latest: { date: string; type: PropertyType; plan: string | null; plot: string | null; area: number; ppm: number; price: number }[];
 };
 
-export function DistrictPanel({ districtId, type, onType, onClose, highlightYear }: { districtId: number; type: PropertyType; onType: (t: PropertyType) => void; onClose: () => void; highlightYear?: number }) {
+export function DistrictPanel({ districtId, type, onClose, highlightYear }: { districtId: number; type: PropertyType; onType?: (t: PropertyType) => void; onClose: () => void; highlightYear?: number }) {
   const q = useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
   if (q.isLoading || !q.data) return <div className="grid h-40 place-items-center"><Spinner /></div>;
   const s = q.data;
@@ -30,16 +30,16 @@ export function DistrictPanel({ districtId, type, onType, onClose, highlightYear
         <button onClick={onClose} className="rounded-lg p-1 text-text-3 hover:bg-row-hover" aria-label="إغلاق"><i className="ti ti-x text-lg" /></button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {s.types.map((t) => (
-          <button key={t.type} onClick={() => onType(t.type)}
-            className={`rounded-xl border p-3 text-start transition ${t.type === type ? "border-ink bg-navy-soft" : "border-border bg-surface hover:border-gold"}`}>
-            <div className="text-xs font-bold text-text-2">{TYPE_LABEL[t.type]}</div>
-            <div className="text-lg font-extrabold text-heading">{t.ppm ? fmt(t.ppm) : "—"}<span className="text-[11px] font-bold text-text-3"> ريال/م²</span></div>
-            <div className="text-[11px] text-text-3">{fmt(t.n12)} صفقة في 12 شهراً</div>
-          </button>
-        ))}
-      </div>
+      {(() => {
+        const t = s.types.find((x) => x.type === type);
+        return (
+          <div className="rounded-xl border border-ink bg-navy-soft p-4">
+            <div className="text-xs font-bold text-text-2">{TYPE_LABEL[type]} · سعر المتر</div>
+            <div className="mt-1 text-2xl font-extrabold text-heading">{t?.ppm ? fmt(t.ppm) : "—"}<span className="text-xs font-bold text-text-3"> ريال/م²</span></div>
+            <div className="mt-0.5 text-xs text-text-3">{fmt(t?.n12 ?? 0)} صفقة في آخر 12 شهراً</div>
+          </div>
+        );
+      })()}
 
       <div>
         <div className="mb-1 text-sm font-bold text-heading">اتجاه سعر المتر · {TYPE_LABEL[type]}</div>
