@@ -117,20 +117,6 @@ function LoginInner() {
         className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[62svh] w-auto opacity-30 [mask-image:linear-gradient(to_bottom,black_45%,transparent)] lg:hidden" />
 
       <div className="relative flex min-h-svh items-center justify-center px-5 py-8">
-        {/* story */}
-        <section className="pointer-events-none absolute start-[4%] top-1/2 hidden -translate-y-1/2 min-[1400px]:block">
-          <div className="max-w-[22rem] rounded-[26px] border border-white/10 bg-ink/70 p-7 shadow-[0_30px_60px_-30px_rgba(0,0,0,.6)] backdrop-blur-md">
-            <span className="inline-flex items-center gap-2 rounded-full border border-gold-2/30 bg-white/5 px-3 py-1 text-xs font-bold text-gold-2">
-              <span className="size-1.5 rounded-full bg-gold-2" /> خريطة أسعار جدة · أرض · آخر 24 شهراً
-            </span>
-            <h1 className="mt-5 text-[32px] font-extrabold leading-[1.4] tracking-[-0.01em]">
-              اعرف سعر العقار<br />من <span className="text-gold-2">صفقات حقيقية</span>
-            </h1>
-            <p className="mt-3 text-[14px] leading-[1.9] text-white/70">
-              كل حي على الخريطة ملوّن بوسيط سعر المتر من صفقات وزارة العدل. أدخل العقار، واحصل على السعر بنطاقه ودرجة ثقته والصفقات التي بُني عليها.
-            </p>
-          </div>
-        </section>
 
         {/* card */}
         <section className="relative w-full max-w-[440px]">
