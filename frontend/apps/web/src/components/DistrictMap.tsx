@@ -80,5 +80,5 @@ export function DistrictMap({
     return () => clearTimeout(t);
   }, [data]);
 
-  return <div dir="ltr" ref={el} style={{ height }} className="w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-2" />;
+  return <div dir="ltr" ref={el} style={{ height }} className="relative isolate z-0 w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-2" />;
 }

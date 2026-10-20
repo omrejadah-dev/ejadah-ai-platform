@@ -19,8 +19,8 @@ export function TrendChart({ district, city, height = 180 }: { district?: TrendP
   const barW = Math.max(4, (W - padL - padR) / years.length - 6);
 
   return (
-    <div dir="ltr" className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[420px]" role="img" aria-label="اتجاه سعر المتر">
+    <div dir="ltr" className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="اتجاه سعر المتر">
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeDasharray="3 3" />

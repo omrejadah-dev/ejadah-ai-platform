@@ -57,11 +57,11 @@ export function MarketMap() {
         </div>
       </div>
 
-      <div className={cn("grid gap-0", selected && "lg:grid-cols-[1fr_380px]")}>
-        <div className="relative p-3">
+      <div className={cn("grid items-start gap-0", selected && "lg:grid-cols-[1fr_380px]")}>
+        <div className="relative isolate p-3 lg:sticky lg:top-[60px]">
           <DistrictMap data={map.data} metric={metric} selectedId={selected?.id ?? null} onSelect={setSelected} height={typeof window !== "undefined" && window.innerWidth < 640 ? 440 : 600} />
           {map.data ? (
-            <div className="pointer-events-none absolute bottom-6 right-6 z-[500] rounded-xl border border-border bg-surface/95 px-3 py-2 text-[11px] shadow-sm">
+            <div className="pointer-events-none absolute bottom-6 right-6 z-10 rounded-xl border border-border bg-surface/95 px-3 py-2 text-[11px] shadow-sm">
               <div className="mb-1 font-bold text-heading">{metric === "ppm" ? `وسيط سعر المتر · ${TYPE_LABEL[type]}` : `صفقات آخر 12 شهراً · ${TYPE_LABEL[type]}`}</div>
               <div className="flex items-center gap-1" dir="ltr">
                 {PALETTE.map((c) => <span key={c} className="h-2.5 w-6" style={{ background: c }} />)}
