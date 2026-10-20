@@ -116,25 +116,25 @@ function LoginInner() {
       <img src="/brand/jeddah-districts.svg" alt="" aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[62svh] w-auto opacity-30 [mask-image:linear-gradient(to_bottom,black_45%,transparent)] lg:hidden" />
 
-      <div className="relative mx-auto grid min-h-svh max-w-7xl grid-cols-1 items-center gap-10 px-5 py-8 lg:grid-cols-[1.1fr_440px] lg:px-10">
+      <div className="relative flex min-h-svh items-center justify-center px-5 py-8">
         {/* story */}
-        <section className="order-2 hidden lg:order-1 lg:block">
-          <div className="ms-[18%] max-w-[31rem] rounded-[26px] border border-white/10 bg-ink/70 p-8 shadow-[0_30px_60px_-30px_rgba(0,0,0,.6)] backdrop-blur-md">
+        <section className="pointer-events-none absolute start-[4%] top-1/2 hidden -translate-y-1/2 min-[1400px]:block">
+          <div className="max-w-[22rem] rounded-[26px] border border-white/10 bg-ink/70 p-7 shadow-[0_30px_60px_-30px_rgba(0,0,0,.6)] backdrop-blur-md">
             <span className="inline-flex items-center gap-2 rounded-full border border-gold-2/30 bg-white/5 px-3 py-1 text-xs font-bold text-gold-2">
               <span className="size-1.5 rounded-full bg-gold-2" /> خريطة أسعار جدة · أرض · آخر 24 شهراً
             </span>
-            <h1 className="mt-5 text-[40px] font-extrabold leading-[1.35] tracking-[-0.01em]">
+            <h1 className="mt-5 text-[32px] font-extrabold leading-[1.4] tracking-[-0.01em]">
               اعرف سعر العقار<br />من <span className="text-gold-2">صفقات حقيقية</span>
             </h1>
-            <p className="mt-4 text-[15.5px] leading-[1.9] text-white/70">
+            <p className="mt-3 text-[14px] leading-[1.9] text-white/70">
               كل حي على الخريطة ملوّن بوسيط سعر المتر من صفقات وزارة العدل. أدخل العقار، واحصل على السعر بنطاقه ودرجة ثقته والصفقات التي بُني عليها.
             </p>
           </div>
         </section>
 
         {/* card */}
-        <section className="order-1 lg:order-2">
-          <div className="mb-6 mt-[18svh] flex justify-center lg:mt-0 lg:justify-start">
+        <section className="relative w-full max-w-[440px]">
+          <div className="mb-6 flex justify-center">
             <EjadaLogo variant="onDark" className="h-auto w-[132px]" />
           </div>
           <div className="rounded-[22px] bg-surface p-7 text-text shadow-[0_40px_80px_-30px_rgba(0,0,0,.55)] sm:p-8">
@@ -194,10 +194,10 @@ function LoginInner() {
               </div>
             )}
           </div>
-          <p className="mt-5 text-center text-xs text-white/55 lg:text-start">
+          <p className="mt-5 text-center text-xs text-white/55">
             لا يوجد لديك اشتراك؟ تواصل مع إجادة لتفعيل حسابك.
           </p>
-          <p className="mt-8 text-center text-[11px] text-white/35 lg:text-start">© 2026 إجادة المهنية للتقييم العقاري</p>
+          <p className="mt-8 text-center text-[11px] text-white/35">© 2026 إجادة المهنية للتقييم العقاري</p>
         </section>
       </div>
     </div>
