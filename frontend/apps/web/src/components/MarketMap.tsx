@@ -6,8 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, cn, Select, Spinner } from "@platform/ui-kit";
 import { DistrictPanel, DistrictTrend } from "@/components/DistrictPanel";
 import { api, fmt, TYPE_LABEL, type PropertyType } from "@/lib/api";
-import type { DistrictCollection, DistrictProps, Metric } from "@/components/DistrictMap";
-import { PALETTE } from "@/components/mapScale";
+import type { CityPoint, DistrictCollection, DistrictProps, Metric } from "@/components/DistrictMap";
+import { breaks, PALETTE } from "@/components/mapScale";
 
 const DistrictMap = dynamic(() => import("@/components/DistrictMap").then((m) => m.DistrictMap), {
   ssr: false,
@@ -24,6 +24,7 @@ export function MarketMap() {
   const [period, setPeriod] = useState<Period>("recent");
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<DistrictProps | null>(null);
+  const [kingdom, setKingdom] = useState(false);
 
   // all 13 regions → their cities that have district polygons
   const [region, setRegion] = useState<string>("");
@@ -42,6 +43,19 @@ export function MarketMap() {
     enabled: cityId !== "",
     staleTime: 30 * 60_000,
   });
+  const overview = useQuery({
+    queryKey: ["map-overview", type],
+    queryFn: () => api<CityPoint[]>(`/api/map/overview?type=${type}`),
+    staleTime: 30 * 60_000,
+  });
+  const cityValue = useCallback((c: CityPoint) => (metric === "ppm" ? c.ppm : c.n12), [metric]);
+  const cityScale = useMemo(() => breaks((overview.data ?? []).map((c) => (metric === "ppm" ? c.ppm ?? 0 : c.n12))), [overview.data, metric]);
+  const cityTooltip = useCallback((c: CityPoint) => {
+    const line = c.ppm ? `${fmt(c.ppm)} ريال/م²` : "لا صفقات كافية";
+    return `<div dir="rtl" style="font-family:inherit"><b>${c.name}</b> · ${c.region}<br/>${line} · ${fmt(c.n12)} صفقة في 12 شهراً<br/><span style="color:#8a8d95">اضغط لعرض أحيائها (${c.districts})</span></div>`;
+  }, []);
+  const goCity = useCallback((c: CityPoint) => { setRegion(c.region); setCityId(c.id); setSelected(null); }, []);
+
   const first = map.data?.scale?.firstYear ?? 2010;
   const last = map.data?.scale?.lastYear ?? 2026;
 
@@ -113,17 +127,18 @@ export function MarketMap() {
         <div className="p-3">
         <div className="relative isolate">
           <DistrictMap data={map.data} valueOf={valueOf} scale={scale} tooltip={tooltip} selectedId={selected?.id ?? null} onSelect={setSelected}
+            cities={overview.data} cityValue={cityValue} cityScale={cityScale} cityTooltip={cityTooltip} currentCityId={cityId} onCity={goCity} onLevel={setKingdom}
             height={typeof window !== "undefined" && window.innerWidth < 640 ? 440 : 600} />
           {map.data ? (
             <div className="pointer-events-none absolute bottom-3 right-3 z-10 rounded-xl border border-border bg-surface/95 px-3 py-2 text-[11px] shadow-sm">
-              <div className="mb-1 font-bold text-heading">{metric === "ppm" ? "وسيط سعر المتر" : "عدد الصفقات"} · {TYPE_LABEL[type]} · {periodLabel}</div>
+              <div className="mb-1 font-bold text-heading">{metric === "ppm" ? "وسيط سعر المتر" : "عدد الصفقات"} · {TYPE_LABEL[type]} · {kingdom ? "المدن · آخر 24 شهراً" : periodLabel}</div>
               <div className="flex items-center gap-1" dir="ltr">
                 {PALETTE.map((c) => <span key={c} className="h-2.5 w-6" style={{ background: c }} />)}
               </div>
               <div className="mt-0.5 flex justify-between text-text-3" dir="ltr">
-                <span>{fmt(scale[0])}</span><span>{fmt(scale[scale.length - 1])}+</span>
+                <span>{fmt((kingdom ? cityScale : scale)[0])}</span><span>{fmt((kingdom ? cityScale : scale).at(-1))}+</span>
               </div>
-              <div className="mt-1 text-text-3">{covered} حياً ببيانات · الألوان ثابتة عبر السنين</div>
+              <div className="mt-1 text-text-3">{kingdom ? `${overview.data?.length ?? 0} مدينة · حجم الدائرة = عدد الصفقات · قرّب لترى الأحياء` : `${covered} حياً ببيانات · الألوان ثابتة عبر السنين`}</div>
             </div>
           ) : null}
           {period !== "recent" ? (

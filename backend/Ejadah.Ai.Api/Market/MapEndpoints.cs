@@ -38,6 +38,40 @@ public static class MapEndpoints
             return Results.Content(json ?? "[]", "application/json");
         }).WithSummary("المناطق ومدنها التي لها خريطة أحياء");
 
+        // Kingdom overview: one point per mapped city with its recent median price and activity
+        g.MapGet("/map/overview", async (string? type, Db db, IMemoryCache cache, CancellationToken ct) =>
+        {
+            type ??= "land";
+            if (!EstimateRequest.TypeGroups.Contains(type)) return Results.BadRequest("type must be land|villa|apartment|building");
+            var json = await cache.GetOrCreateAsync($"map:overview:v1:{type}", async e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6);
+                return await db.ScalarAsync<string>(
+                    """
+                    with asof as (select data_as_of d from market.v_meta),
+                    mapped as (
+                      select d.city_id, avg(s.center_lat) lat, avg(s.center_lng) lng, count(*) n_districts
+                      from market.district_shapes s join market.districts d on d.id = s.district_id
+                      group by d.city_id having count(*) >= 3
+                    ),
+                    st as (
+                      select x.city_id,
+                             percentile_cont(0.5) within group (order by x.ppm) ppm,
+                             count(*) filter (where x.deal_date > (select d from asof) - interval '12 months') n12
+                      from market.deals x
+                      where x.is_market_deal and x.type_group = @type and x.city_id in (select city_id from mapped)
+                        and x.deal_date > (select d from asof) - interval '24 months'
+                      group by x.city_id
+                    )
+                    select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name, 'region', c.region,
+                             'center', jsonb_build_array(round(m.lat, 5), round(m.lng, 5)), 'districts', m.n_districts,
+                             'ppm', round(st.ppm::numeric), 'n12', coalesce(st.n12, 0)) order by coalesce(st.n12, 0) desc), '[]'::jsonb)::text
+                    from mapped m join market.cities c on c.id = m.city_id left join st on st.city_id = m.city_id
+                    """, new { type }, ct);
+            });
+            return Results.Content(json ?? "[]", "application/json");
+        }).WithSummary("نظرة على المملكة: نقطة لكل مدينة بسعر المتر وعدد الصفقات");
+
         // GeoJSON FeatureCollection: every district of the city that has a polygon, with stats for one property type.
         g.MapGet("/cities/{cityId:int}/map", async (int cityId, string? type, Db db, IMemoryCache cache, CancellationToken ct) =>
         {
