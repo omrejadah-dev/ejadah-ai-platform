@@ -160,10 +160,6 @@ function LoginInner() {
                     {!loading ? <i className="ti ti-arrow-left text-lg" aria-hidden /> : null}
                   </button>
                 </form>
-                <div className="mt-6 flex items-center gap-2 rounded-xl bg-surface-2 px-4 py-3 text-xs leading-relaxed text-text-2">
-                  <i className="ti ti-lock text-base text-gold-d" aria-hidden />
-                  جلسة واحدة لكل حساب، والدخول من جهاز جديد يُنهي الجلسة السابقة.
-                </div>
               </div>
             ) : (
               <div key="otp" className="animate-[login-rise_0.35s_ease]">
