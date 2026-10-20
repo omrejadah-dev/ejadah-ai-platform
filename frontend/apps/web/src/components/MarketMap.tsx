@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, cn, Select, Spinner } from "@platform/ui-kit";
 import { DistrictPanel, DistrictTrend } from "@/components/DistrictPanel";
-import { api, fmt, TYPE_LABEL, type City, type PropertyType } from "@/lib/api";
+import { api, fmt, TYPE_LABEL, type PropertyType } from "@/lib/api";
 import type { DistrictCollection, DistrictProps, Metric } from "@/components/DistrictMap";
 import { PALETTE } from "@/components/mapScale";
 
@@ -15,6 +15,7 @@ const DistrictMap = dynamic(() => import("@/components/DistrictMap").then((m) =>
 });
 
 type Period = "recent" | number;
+type MapRegion = { region: string; deals: number; cities: { id: number; name: string; districts: number; deals: number }[] };
 
 export function MarketMap() {
   const [cityId, setCityId] = useState<number | "">("");
@@ -24,10 +25,16 @@ export function MarketMap() {
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<DistrictProps | null>(null);
 
-  const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/api/cities") });
+  // all 13 regions → their cities that have district polygons
+  const [region, setRegion] = useState<string>("");
+  const regions = useQuery({ queryKey: ["map-cities"], queryFn: () => api<MapRegion[]>("/api/map/cities"), staleTime: 60 * 60_000 });
   useEffect(() => {
-    if (cities.data?.length && cityId === "") setCityId((cities.data.find((c) => c.name.startsWith("جد")) ?? cities.data[0]).id);
-  }, [cities.data, cityId]);
+    if (!regions.data?.length || region) return;
+    const r = regions.data.find((x) => x.region === "مكة المكرمة") ?? regions.data[0];
+    setRegion(r.region);
+    setCityId((r.cities.find((c) => c.name.startsWith("جد")) ?? r.cities[0]).id);
+  }, [regions.data, region]);
+  const regionCities = regions.data?.find((r) => r.region === region)?.cities ?? [];
 
   const map = useQuery({
     queryKey: ["map", cityId, type],
@@ -71,8 +78,12 @@ export function MarketMap() {
     <Card>
       <div className="flex flex-wrap items-center gap-2 rounded-t-[var(--radius-lg)] border-b border-border bg-surface-2 px-4 py-3">
         <span className="me-2 font-bold text-heading">خريطة الأسعار</span>
-        <Select className="!w-auto" value={cityId} onChange={(e) => { setCityId(Number(e.target.value)); setSelected(null); }}>
-          {cities.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        <Select className="!w-auto" value={region} aria-label="المنطقة"
+          onChange={(e) => { const r = regions.data?.find((x) => x.region === e.target.value); setRegion(e.target.value); if (r) setCityId(r.cities[0].id); setSelected(null); setPeriod("recent"); }}>
+          {regions.data?.map((r) => <option key={r.region} value={r.region}>منطقة {r.region}</option>)}
+        </Select>
+        <Select className="!w-auto" value={cityId} aria-label="المدينة" onChange={(e) => { setCityId(Number(e.target.value)); setSelected(null); }}>
+          {regionCities.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.districts} حياً)</option>)}
         </Select>
         <Seg value={type} onChange={setType} options={(Object.keys(TYPE_LABEL) as PropertyType[]).map((t) => [t, TYPE_LABEL[t]] as [PropertyType, string])} />
         <Seg value={metric} onChange={setMetric} options={[["ppm", "سعر المتر"], ["n12", "عدد الصفقات"]]} />

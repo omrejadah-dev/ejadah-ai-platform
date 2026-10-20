@@ -13,6 +13,31 @@ public static class MapEndpoints
     {
         var g = app.MapGroup("/api").WithTags("Map").RequireAuthorization(Capabilities.PriceEstimate);
 
+        // Regions → cities that have at least 3 district polygons (the map works for any of them)
+        g.MapGet("/map/cities", async (Db db, IMemoryCache cache, CancellationToken ct) =>
+        {
+            var json = await cache.GetOrCreateAsync("map:cities:v1", async e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6);
+                return await db.ScalarAsync<string>(
+                    """
+                    with c as (
+                      select c.id, c.name, c.region, count(s.district_id) as districts,
+                             (select coalesce(sum(m.n_deals),0) from market.mv_city_month m where m.city_id = c.id) as deals
+                      from market.cities c join market.districts d on d.city_id = c.id join market.district_shapes s on s.district_id = d.id
+                      group by c.id
+                      having count(s.district_id) >= 3
+                    )
+                    select jsonb_agg(jsonb_build_object('region', region, 'deals', rdeals,
+                             'cities', cities) order by rdeals desc)::text
+                    from (select region, sum(deals) as rdeals,
+                                 jsonb_agg(jsonb_build_object('id', id, 'name', name, 'districts', districts, 'deals', deals) order by deals desc) as cities
+                          from c group by region) r
+                    """, ct: ct);
+            });
+            return Results.Content(json ?? "[]", "application/json");
+        }).WithSummary("المناطق ومدنها التي لها خريطة أحياء");
+
         // GeoJSON FeatureCollection: every district of the city that has a polygon, with stats for one property type.
         g.MapGet("/cities/{cityId:int}/map", async (int cityId, string? type, Db db, IMemoryCache cache, CancellationToken ct) =>
         {

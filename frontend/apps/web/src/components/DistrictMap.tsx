@@ -70,13 +70,16 @@ export function DistrictMap({
     }).addTo(m);
     restyleAll();
 
-    // centre on the deal-weighted middle of the city; Jeddah is ~100 km long, so a fixed zoom reads better than fitBounds
-    const pts = data.features.filter((f) => f.properties.n24 > 0);
-    const wt = (f: (typeof pts)[number]) => Math.sqrt(f.properties.n24);
-    const w = pts.reduce((t, f) => t + wt(f), 0) || 1;
-    const lat = pts.reduce((t, f) => t + f.properties.center[0] * wt(f), 0) / w;
-    const lng = pts.reduce((t, f) => t + f.properties.center[1] * wt(f), 0) / w;
-    const t = setTimeout(() => { m.invalidateSize(); m.setView([lat || 21.55, lng || 39.2], m.getSize().x < 640 ? 10 : 10.5); }, 50);
+    // frame the busier half of the city's districts (outlying polygons would zoom a long city like Jeddah out too far)
+    const busy = [...data.features].sort((a, b) => b.properties.n24 - a.properties.n24).slice(0, Math.max(5, Math.ceil(data.features.length / 2)));
+    const target = L.geoJSON({ type: "FeatureCollection", features: busy } as GeoJSON.FeatureCollection).getBounds();
+    const t = setTimeout(() => {
+      m.invalidateSize();
+      if (target.isValid()) {
+        const z = Math.min(13, Math.max(8, m.getBoundsZoom(target, false, L.point(16, 16))));
+        m.setView(target.getCenter(), z);
+      }
+    }, 50);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
