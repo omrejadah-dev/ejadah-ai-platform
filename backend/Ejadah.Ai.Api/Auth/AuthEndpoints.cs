@@ -9,7 +9,7 @@ public sealed record MeDto(string Kind, Guid Id, Guid? AccountId, string Role, s
 
 public static class AuthEndpoints
 {
-    private const int OtpTtlMinutes = 5, OtpMaxAttempts = 3, OtpLockMinutes = 15, OtpPerHourPerPhone = 5;
+    private const int OtpTtlMinutes = 5, OtpMaxAttempts = 3, OtpLockMinutes = 15;
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
@@ -28,7 +28,8 @@ public static class AuthEndpoints
                 return Results.Problem(title: principal.AccountStatus == "expired" ? "انتهى الاشتراك، تواصل مع إجادة للتجديد" : "الحساب موقوف، تواصل مع إجادة", statusCode: 403, type: "account_" + principal.AccountStatus);
 
             var recent = await db.ScalarAsync<int>("select count(*) from identity.otp_codes where phone = @phone and created_at > now() - interval '1 hour'", new { phone }, ct);
-            if (recent >= OtpPerHourPerPhone)
+            var perHour = cfg.GetValue("Sms:OtpPerHourPerPhone", 5);   // 5 in production, raised in appsettings.Development.json
+            if (recent >= perHour)
                 return Results.Problem(title: "تجاوزت عدد الرموز المسموح، حاول بعد ساعة", statusCode: 429, type: "otp_rate_limited");
             if (await IsLocked(db, phone, ct))
                 return Results.Problem(title: "تم إيقاف الدخول مؤقتاً بعد محاولات خاطئة، حاول بعد 15 دقيقة", statusCode: 429, type: "otp_locked");
