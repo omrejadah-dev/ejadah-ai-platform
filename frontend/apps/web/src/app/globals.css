@@ -53,3 +53,7 @@
 
 html { background: var(--bg); color: var(--text-1); }
 body { min-height: 100svh; }
+
+@keyframes map-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+}
