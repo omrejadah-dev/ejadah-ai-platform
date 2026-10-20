@@ -7,6 +7,7 @@ import { api, CONFIDENCE_LABEL, fmt, TYPE_LABEL, type EstimateResult, type Prope
 import { useMe } from "@/providers/MeProvider";
 import { confidenceTone } from "@/lib/ui";
 import { MarketMap } from "@/components/MarketMap";
+import { FEATURES } from "@/lib/features";
 
 const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
   { type: "land", icon: "ti-map-2", hint: "قطعة أرض سكنية أو تجارية" },
@@ -17,7 +18,7 @@ const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
 
 export default function HomePage() {
   const me = useMe();
-  const recent = useQuery({ queryKey: ["estimates", 3], queryFn: () => api<ValuationSummary[]>("/api/estimates?limit=3") });
+  const recent = useQuery({ queryKey: ["estimates", 3], queryFn: () => api<ValuationSummary[]>("/api/estimates?limit=3"), enabled: FEATURES.estimate });
   const meta = useQuery({ queryKey: ["meta"], queryFn: () => api<{ dataAsOf: string; marketDeals: number }>("/api/meta") });
 
   return (
@@ -25,13 +26,15 @@ export default function HomePage() {
       <div>
         <h1 className="text-2xl font-extrabold text-heading">مرحباً {me.name ?? ""}</h1>
         <p className="mt-1 text-sm text-text-2">
-          اختر نوع العقار لبدء التسعير.
+          {FEATURES.estimate ? "اختر نوع العقار لبدء التسعير." : "اضغط على أي حي في الخريطة لعرض أسعاره وصفقاته."}
           {meta.data ? ` البيانات حتى ${meta.data.dataAsOf.slice(0, 10)} من ${fmt(meta.data.marketDeals)} صفقة سوقية.` : ""}
         </p>
       </div>
 
       <MarketMap />
 
+      {FEATURES.estimate ? (
+      <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {TYPES.map((t) => (
           <Link key={t.type} href={`/estimate/new?type=${t.type}`}
@@ -71,6 +74,8 @@ export default function HomePage() {
           )}
         </CardBody>
       </Card>
+      </>
+      ) : null}
     </div>
   );
 }

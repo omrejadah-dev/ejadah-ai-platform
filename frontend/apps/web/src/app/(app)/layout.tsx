@@ -8,12 +8,15 @@ import { EjadaLogo } from "@/components/EjadaLogo";
 import { api, type Me } from "@/lib/api";
 import { ROLE_LABEL } from "@/lib/ui";
 import { MeContext } from "@/providers/MeProvider";
+import { FEATURES } from "@/lib/features";
 import { useEffect } from "react";
 
 const NAV: { href: string; label: string; icon: string; cap?: string }[] = [
   { href: "/", label: "الرئيسية", icon: "ti-home" },
-  { href: "/estimate/new", label: "تسعير عقار", icon: "ti-calculator" },
-  { href: "/my-estimates", label: "تسعيراتي", icon: "ti-history" },
+  ...(FEATURES.estimate ? [
+    { href: "/estimate/new", label: "تسعير عقار", icon: "ti-calculator" },
+    { href: "/my-estimates", label: "تسعيراتي", icon: "ti-history" },
+  ] : []),
   { href: "/market", label: "السوق", icon: "ti-chart-line", cap: "market.history" },
   { href: "/legal", label: "اسأل إجادة القانونية", icon: "ti-scale" },
 ];
@@ -71,7 +74,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6 pb-24 md:pb-8">{children}</main>
         {/* mobile bottom nav */}
-        <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-border bg-surface md:hidden">
+        <nav style={{ gridTemplateColumns: `repeat(${Math.min(4, visible.length)}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface md:hidden">
           {visible.slice(0, 4).map((n) => (
             <Link key={n.href} href={n.href} className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-semibold text-text-2", pathname === n.href && "text-ink")}>
               <i className={cn("ti text-xl", n.icon)} aria-hidden />{n.label}

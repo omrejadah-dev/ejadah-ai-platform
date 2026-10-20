@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Spinner } from "@platform/ui-kit";
 import { api, fmt, TYPE_LABEL, type PropertyType, type TrendPoint } from "@/lib/api";
 import { TrendChart } from "@/components/TrendChart";
+import { FEATURES } from "@/lib/features";
 
 export type Summary = {
   id: number; name: string; cityId: number; city: string; dataAsOf: string;
@@ -62,7 +63,7 @@ export function DistrictPanel({ districtId, type, onClose }: { districtId: numbe
         ) : <p className="text-xs text-text-3">لا صفقات لهذا النوع في هذا الحي.</p>}
       </div>
 
-      <Link href={estimateHref} className="block"><Button variant="primary" className="w-full"><i className="ti ti-calculator" aria-hidden /> سعّر عقاراً في هذا الحي</Button></Link>
+      {FEATURES.estimate ? (<Link href={estimateHref} className="block"><Button variant="primary" className="w-full"><i className="ti ti-calculator" aria-hidden /> سعّر عقاراً في هذا الحي</Button></Link>) : null}
     </div>
   );
 }
