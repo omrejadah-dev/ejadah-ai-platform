@@ -38,39 +38,58 @@ public static class MapEndpoints
             return Results.Content(json ?? "[]", "application/json");
         }).WithSummary("المناطق ومدنها التي لها خريطة أحياء");
 
-        // Kingdom overview: one point per mapped city with its recent median price and activity
+        // Kingdom view: the 13 regions as polygons, with recent and per-year median price and activity, and one cross-year colour scale
         g.MapGet("/map/overview", async (string? type, Db db, IMemoryCache cache, CancellationToken ct) =>
         {
             type ??= "land";
             if (!EstimateRequest.TypeGroups.Contains(type)) return Results.BadRequest("type must be land|villa|apartment|building");
-            var json = await cache.GetOrCreateAsync($"map:overview:v1:{type}", async e =>
+            var json = await cache.GetOrCreateAsync($"map:overview:v3:{type}", async e =>
             {
                 e.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6);
                 return await db.ScalarAsync<string>(
                     """
                     with asof as (select data_as_of d from market.v_meta),
-                    mapped as (
-                      select d.city_id, avg(s.center_lat) lat, avg(s.center_lng) lng, count(*) n_districts
-                      from market.district_shapes s join market.districts d on d.id = s.district_id
-                      group by d.city_id having count(*) >= 3
-                    ),
-                    st as (
-                      select x.city_id,
-                             percentile_cont(0.5) within group (order by x.ppm) ppm,
+                    recent as (
+                      select x.region, percentile_cont(0.5) within group (order by x.ppm) ppm,
                              count(*) filter (where x.deal_date > (select d from asof) - interval '12 months') n12
                       from market.deals x
-                      where x.is_market_deal and x.type_group = @type and x.city_id in (select city_id from mapped)
-                        and x.deal_date > (select d from asof) - interval '24 months'
-                      group by x.city_id
+                      where x.is_market_deal and x.type_group = @type and x.deal_date > (select d from asof) - interval '24 months'
+                      group by x.region
+                    ),
+                    yr as (
+                      select region, year y, n_deals n, ppm_median ppm from market.mv_region_year where type_group = @type
+                    ),
+                    yearly as (
+                      select region, jsonb_object_agg(y::text, jsonb_build_array(case when n >= 10 then round(ppm::numeric) end, n)) y
+                      from yr group by region
+                    ),
+                    best_city as (   -- the busiest mapped city of each region: where a click on the region lands
+                      select distinct on (c.region) c.region, c.id
+                      from market.cities c join market.districts d on d.city_id = c.id join market.district_shapes s on s.district_id = d.id
+                      left join market.mv_city_month m on m.city_id = c.id
+                      group by c.region, c.id order by c.region, coalesce(sum(m.n_deals), 0) desc
+                    ),
+                    scale as (
+                      select (select array_agg(round(v::numeric)) from unnest(percentile_cont(array[1/6.0, 2/6.0, 3/6.0, 4/6.0, 5/6.0]) within group (order by ppm)) v) ppm,
+                             (select array_agg(round(v::numeric)) from unnest(percentile_cont(array[1/6.0, 2/6.0, 3/6.0, 4/6.0, 5/6.0]) within group (order by n)) v) cnt
+                      from yr where n >= 10
                     )
-                    select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name, 'region', c.region,
-                             'center', jsonb_build_array(round(m.lat, 5), round(m.lng, 5)), 'districts', m.n_districts,
-                             'ppm', round(st.ppm::numeric), 'n12', coalesce(st.n12, 0)) order by coalesce(st.n12, 0) desc), '[]'::jsonb)::text
-                    from mapped m join market.cities c on c.id = m.city_id left join st on st.city_id = m.city_id
+                    select jsonb_build_object(
+                      'type', 'FeatureCollection',
+                      'scale', (select jsonb_build_object('ppm', ppm, 'count', cnt) from scale),
+                      'features', coalesce(jsonb_agg(jsonb_build_object(
+                        'type', 'Feature', 'geometry', r.geometry,
+                        'properties', jsonb_build_object('region', r.region, 'name', r.display_name,
+                          'center', jsonb_build_array(r.center_lat, r.center_lng), 'cityId', bc.id,
+                          'ppm', round(rc.ppm::numeric), 'n12', coalesce(rc.n12, 0), 'y', coalesce(yl.y, '{}'::jsonb)))), '[]'::jsonb))::text
+                    from market.region_shapes r
+                    left join recent rc on rc.region = r.region
+                    left join yearly yl on yl.region = r.region
+                    left join best_city bc on bc.region = r.region
                     """, new { type }, ct);
             });
-            return Results.Content(json ?? "[]", "application/json");
-        }).WithSummary("نظرة على المملكة: نقطة لكل مدينة بسعر المتر وعدد الصفقات");
+            return Results.Content(json ?? """{"type":"FeatureCollection","features":[]}""", "application/json");
+        }).WithSummary("المملكة: حدود المناطق الـ13 بسعر المتر وعدد الصفقات، حديثاً ولكل سنة");
 
         // GeoJSON FeatureCollection: every district of the city that has a polygon, with stats for one property type.
         g.MapGet("/cities/{cityId:int}/map", async (int cityId, string? type, Db db, IMemoryCache cache, CancellationToken ct) =>

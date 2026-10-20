@@ -14,18 +14,20 @@ export type DistrictProps = {
 export type DistrictCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, DistrictProps> & {
   scale: { ppm: number[]; count: number[]; firstYear: number; lastYear: number };
 };
-export type CityPoint = { id: number; name: string; region: string; center: [number, number]; districts: number; ppm: number | null; n12: number };
+export type RegionProps = { region: string; name: string; center: [number, number]; cityId: number | null; ppm: number | null; n12: number; y: Record<string, [number | null, number]> };
+export type RegionCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, RegionProps> & { scale: { ppm: number[]; count: number[] } };
+type RegionLayer = L.Path & { feature: GeoJSON.Feature<GeoJSON.Geometry, RegionProps> };
 export type Metric = "ppm" | "n12";
 
 type FeatureLayer = L.Path & { feature: GeoJSON.Feature<GeoJSON.Geometry, DistrictProps> };
 
-/** Below this zoom the map shows one circle per city (Kingdom view); at or above it, the districts of the selected city. */
+/** Below this zoom the map shows the 13 regions (Kingdom view); at or above it, the districts of the selected city. */
 const CITY_ZOOM = 9;
 const KINGDOM: [L.LatLngExpression, number] = [[24.2, 44.6], 5.75];
 
 export function DistrictMap({
   data, valueOf, scale, tooltip, selectedId, onSelect, height = 600,
-  cities, cityValue, cityScale, cityTooltip, currentCityId, onCity, onLevel,
+  regions, regionValue, regionScale, regionTooltip, currentRegion, onRegion, onLevel,
 }: {
   data: DistrictCollection | undefined;
   valueOf: (p: DistrictProps) => number | null;
@@ -34,20 +36,20 @@ export function DistrictMap({
   selectedId: number | null;
   onSelect: (p: DistrictProps) => void;
   height?: number;
-  cities?: CityPoint[];
-  cityValue: (c: CityPoint) => number | null;
-  cityScale: number[];
-  cityTooltip: (c: CityPoint) => string;
-  currentCityId: number | "";
-  onCity: (c: CityPoint) => void;
+  regions?: RegionCollection;
+  regionValue: (r: RegionProps) => number | null;
+  regionScale: number[];
+  regionTooltip: (r: RegionProps) => string;
+  currentRegion: string;
+  onRegion: (r: RegionProps) => void;
   onLevel?: (kingdom: boolean) => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.GeoJSON | null>(null);
-  const cityLayer = useRef<L.LayerGroup | null>(null);
-  const cb = useRef({ onSelect, valueOf, tooltip, scale, selectedId, cityValue, cityScale, cityTooltip, currentCityId, onCity, cities, onLevel });
-  cb.current = { onSelect, valueOf, tooltip, scale, selectedId, cityValue, cityScale, cityTooltip, currentCityId, onCity, cities, onLevel };
+  const cityLayer = useRef<L.GeoJSON | null>(null);
+  const cb = useRef({ onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel });
+  cb.current = { onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel };
 
   function restyle(path: L.Path, p: DistrictProps) {
     const v = cb.current.valueOf(p);
@@ -69,26 +71,30 @@ export function DistrictMap({
     }
   }
 
-  function drawCities() {
+  function styleRegion(path: L.Path, r: RegionProps) {
+    const v = cb.current.regionValue(r);
+    const cur = r.region === cb.current.currentRegion;
+    path.setStyle({ color: cur ? "#a4906f" : "#ffffff", weight: cur ? 3 : 1.2, fillColor: colorFor(v, cb.current.regionScale), fillOpacity: v ? 0.74 : 0.3 });
+  }
+  const restyleRegions = () => cityLayer.current?.eachLayer((l) => styleRegion(l as RegionLayer, (l as RegionLayer).feature.properties));
+
+  function drawRegions() {
     const m = map.current;
-    const list = cb.current.cities;
-    if (!m || !list) return;
+    const fc = cb.current.regions;
+    if (!m || !fc) return;
     cityLayer.current?.remove();
-    const maxN = Math.max(1, ...list.map((c) => c.n12));
-    const g = L.layerGroup();
-    for (const c of list) {
-      const v = cb.current.cityValue(c);
-      const current = c.id === cb.current.currentCityId;
-      L.circleMarker(c.center, {
-        radius: 5 + 21 * Math.sqrt(c.n12 / maxN),
-        color: current ? "#a4906f" : "#ffffff", weight: current ? 3 : 1.5,
-        fillColor: colorFor(v, cb.current.cityScale), fillOpacity: v ? 0.85 : 0.35,
-      })
-        .bindTooltip(() => cb.current.cityTooltip(c), { direction: "top", sticky: true })
-        .on("click", () => cb.current.onCity(c))
-        .addTo(g);
-    }
-    cityLayer.current = g;
+    cityLayer.current = L.geoJSON(fc, {
+      onEachFeature: (f, lyr) => {
+        const r = f.properties as RegionProps;
+        lyr.bindTooltip(() => cb.current.regionTooltip(r), { sticky: true, direction: "top" });
+        lyr.on({
+          click: () => cb.current.onRegion(r),
+          mouseover: (e) => (e.target as L.Path).setStyle({ weight: 3, color: "#a4906f" }),
+          mouseout: (e) => styleRegion(e.target as L.Path, r),
+        });
+      },
+    });
+    restyleRegions();
     applyLevel();
   }
 
@@ -154,9 +160,11 @@ export function DistrictMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  // city circles: redrawn when the list, colours or current city change
+  // regions: geometry once per dataset, colours on every period / metric change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCities(); }, [cities, cityValue, cityScale, currentCityId]);
+  useEffect(() => { drawRegions(); }, [regions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { restyleRegions(); }, [regionValue, regionScale, currentRegion]);
 
   // district colours only: cheap, runs on every year / metric / selection change so the play animation stays smooth
   // eslint-disable-next-line react-hooks/exhaustive-deps

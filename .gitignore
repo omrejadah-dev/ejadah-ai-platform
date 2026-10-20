@@ -24,3 +24,5 @@ frontend/apps/web/.next-test/
 data/geo/districts.json
 data/geo/cities.json
 data/geo/ours.txt
+data/geo/regions.json
+data/geo/regions_full.json
