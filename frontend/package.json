@@ -1,0 +1,19 @@
+{
+  "name": "ejadah-ai-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ejadah/web",
+    "build": "npm run build -w @ejadah/web",
+    "start": "npm run start -w @ejadah/web",
+    "typecheck": "npm run typecheck -w @ejadah/web",
+    "lint": "npm run lint -w @ejadah/web"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.43.1"
+  }
+}

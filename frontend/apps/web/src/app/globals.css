@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@import "@platform/ui-kit/tokens.css";
+@import "@platform/ui-kit/animations.css";
+@source "../../../../packages/ui-kit/src/**/*.{ts,tsx}";
+@source "../**/*.{ts,tsx}";
+
+@theme inline {
+  --font-sans: var(--font-app);
+  --font-report: var(--font-report);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-md: var(--border-md);
+  --color-text: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-primary: var(--primary);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-navy-3: var(--navy-3);
+  --color-navy-soft: var(--navy-soft);
+  --color-gold: var(--gold);
+  --color-gold-d: var(--gold-d);
+  --color-gold-2: var(--gold-2);
+  --color-gold-soft: var(--gold-soft);
+  --color-heading: var(--heading);
+  --color-row-hover: var(--row-hover);
+  --color-amber: var(--amber);
+  --color-amber-light: var(--amber-light);
+  --color-amber-text: var(--amber-text);
+  --color-danger: var(--red);
+  --color-danger-text: var(--red-text);
+  --color-danger-bg: var(--red-light);
+  --color-red: var(--red);
+  --color-info: var(--blue);
+  --color-info-text: var(--blue-text);
+  --color-info-bg: var(--blue-light);
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-primary-light: var(--primary-light);
+  --color-teal-light: var(--teal-light);
+  --color-teal-text: var(--teal-text);
+}
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+html { background: var(--bg); color: var(--text-1); }
+body { min-height: 100svh; }

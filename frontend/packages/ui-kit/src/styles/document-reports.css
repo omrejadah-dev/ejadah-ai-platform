@@ -1,0 +1,315 @@
+﻿/* Valuation + case-study print/document chrome — descendant tables, @page, mm units. */
+
+/* Millimetric copy of the Settings v2 `.rpt-ref` */
+.rpt-ref {
+  color: var(--text-1);
+  max-width: 100%;
+  overflow-x: hidden;
+  font-size: 13px;
+}
+.rpt-ref .rpt-page {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+.rpt-ref .sec {
+  margin-bottom: 18px;
+}
+.rpt-ref h2.rpt-h {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface-2);
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-inline-start: 3px solid var(--gold);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: start;
+  width: 100%;
+  line-height: 1.4;
+}
+.rpt-ref h2.rpt-h .n {
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 2px;
+}
+.rpt-ref h2.rpt-h .chev {
+  margin-inline-start: auto;
+  font-size: 11px;
+  color: var(--gold-d);
+  transition: transform 0.15s;
+}
+.rpt-ref h2.rpt-h .chev.is-closed {
+  transform: rotate(-90deg);
+}
+.rpt-ref h3,
+.rpt-ref h3.rpt-h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface-2);
+  border-inline-start: 3px solid var(--gold);
+  padding: 5px 10px;
+  margin: 12px 0 8px;
+}
+.rpt-ref table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 6px;
+  background: var(--surface);
+  max-width: none;
+}
+.rpt-ref td,
+.rpt-ref th {
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+  text-align: right;
+}
+.rpt-ref th {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom: 2px solid var(--gold);
+}
+.rpt-ref td.k {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+  width: 1%;
+  white-space: nowrap;
+}
+.rpt-ref table.def td.k,
+.rpt-ref table.tight td.k {
+  width: 20%;
+  white-space: normal;
+}
+.rpt-ref td.v {
+  font-weight: 500;
+}
+.rpt-ref td.num,
+.rpt-ref th.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.rpt-ref table.mx th,
+.rpt-ref table.mx td.num {
+  text-align: center;
+}
+.rpt-ref table.ctr td:not(.k) {
+  text-align: center;
+}
+.rpt-ref tr.sub td {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+.rpt-ref tr.total td {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 700;
+  border-top: 2px solid var(--gold);
+}
+.rpt-ref p,
+.rpt-ref .body {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.85;
+  margin: 0 0 5px;
+  text-align: justify;
+  max-width: none;
+}
+.rpt-ref ul {
+  margin: 0 0 6px;
+  padding-inline-start: 16px;
+  max-width: none;
+}
+.rpt-ref ul ul {
+  margin: 4px 0 0;
+}
+.rpt-ref li {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.85;
+  text-align: justify;
+}
+.rpt-ref .esg-or {
+  color: var(--text-3);
+  font-size: 11px;
+  margin-top: 3px;
+}
+.rpt-ref h2.rpt-h.static {
+  cursor: default;
+  margin-top: 14px;
+}
+.rpt-ref .add-line {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  margin: 4px 0 0;
+}
+.rpt-ref .add-line:hover {
+  color: var(--gold-d);
+}
+.rpt-ref .sysnote {
+  color: var(--text-3);
+  font-size: 11px;
+  margin: 0 0 8px;
+  text-align: start;
+}
+.rpt-ref .auto,
+.rpt-ref td.v.auto,
+.rpt-ref td.auto {
+  color: var(--text-3);
+}
+.rpt-ref .gold-date {
+  border-bottom: 1px dashed var(--gold);
+}
+.rpt-ref .scope-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--gold);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 8px 0 6px;
+}
+.rpt-ref .map-ph {
+  display: grid;
+  place-items: center;
+  min-height: 140px;
+  border: 1px dashed var(--border-md);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 8px;
+  text-align: center;
+}
+.rpt-ref iframe {
+  display: block;
+  border: 0;
+  background: var(--surface-2);
+}
+.rpt-ref .cell-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-1);
+  outline: none;
+  padding: 0;
+  border-bottom: 1px dashed transparent;
+}
+.rpt-ref .cell-input:focus {
+  border-bottom-color: var(--gold);
+}
+.rpt-ref .edit-p,
+.rpt-ref .li-edit {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.85;
+  text-align: justify;
+  color: var(--text-1);
+  resize: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  field-sizing: content;
+}
+.rpt-ref .li-edit {
+  min-height: 1.85em;
+}
+.rpt-ref .edit-p:focus,
+.rpt-ref .li-edit:focus {
+  outline: 1px dashed var(--gold);
+  outline-offset: 2px;
+}
+.rpt-ref td.v.finish {
+  font-size: 9px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+.rpt-ref td.v.finish .li-edit,
+.rpt-ref td.v.finish .edit-p {
+  font-size: 9px;
+  line-height: 1.5;
+}
+.rpt-ref a.rpt-link {
+  font-weight: 600;
+  color: var(--ink);
+}
+.rpt-ref a.rpt-link:hover {
+  color: var(--gold-d);
+}
+.rpt-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.rpt-head h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--heading);
+}
+.rpt-head .desc {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.rpt-head .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rpt-head .dirty {
+  font-size: 11.5px;
+  color: var(--amber-text, #92600a);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rpt-head .dirty i {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--warning, #d9a441);
+  display: inline-block;
+}
+.rpt-title {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #102b4e;
+  margin: 0 0 12px;
+}
+

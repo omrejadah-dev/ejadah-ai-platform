@@ -1,0 +1,155 @@
+/* Design tokens — aligned with docs/new look (navy + gold, Tajawal). */
+
+/* Letter context (--font-letter) — self-hosted, not a Google font. */
+@font-face {
+  font-family: "Sakkal Majalla";
+  src: url("/ejadah/fonts/SakkalMajalla-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Sakkal Majalla";
+  src: url("/ejadah/fonts/SakkalMajalla-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── Brand palette (new look) ── */
+  --ink: #102b4e; /* Brand navy — sidebar, primary button fill, toasts, headings */
+  --navy-3: #22406e; /* Lighter navy — hover state on ink fills */
+  --gold: #a4906f; /* Accent — decorative only: focus rings, active rails, table-header underline. Never a text or button-fill color */
+  --gold-d: #7a6749; /* Gold TEXT color where a gold accent must read as text (labels, links) — 5.2:1 on white/cream (AA) */
+  --gold-2: #c8b591; /* Lighter gold — secondary accent tint */
+  --gold-soft: #f1ece2; /* Gold wash — selected-row fill, subtle accent backgrounds */
+  --heading: #102b4e; /* Heading/key-column text color (usually same as ink) */
+  --row-hover: #faf6ee; /* Table/list row hover background */
+
+  /* ── HTML semantic palette ── */
+  --bg: #f5f3ee; /* Page background (warm cream) */
+  --surface: #ffffff; /* Card/panel background */
+  --surface-2: #faf8f3; /* Subtle panel/table-header background */
+  --border: #ece8df; /* Default hairline border */
+  --border-md: #ddd8cc; /* Slightly stronger hairline — secondary button border, dividers */
+  --text-1: #3a3f4d; /* Primary body text */
+  --text-2: #73767f; /* Secondary text (labels, meta) */
+  --text-3: #8a8d95; /* Muted/tertiary text — decorative captions, not primary reading text — 3.5:1 on white/cream */
+  --blue: #378add; /* Info fill color */
+  --blue-light: #e6f1fb; /* Info background wash */
+  --blue-text: #185fa5; /* Info label text color */
+  /* Soft navy wash — tinted from page cream so surfaces match the site */
+  --navy-soft: color-mix(in srgb, var(--ink) 8%, var(--bg));
+  /* Teal aliases → brand navy (matches sidebar / primary CTA) */
+  --teal: var(--ink); /* Legacy alias — use --ink in new work */
+  --teal-light: var(--navy-soft); /* Legacy alias — use --navy-soft in new work */
+  --teal-text: var(--navy-3); /* Legacy alias — use --navy-3 in new work */
+  --amber: #ef9f27; /* Warning fill color */
+  --amber-light: #faeeda; /* Warning background wash */
+  --amber-text: #854f0b; /* Warning label text color */
+  --red: #c4553b; /* Danger fill color — white-on-red button text 4.6:1 (AA) */
+  --red-light: #fbe9e4; /* Danger background wash */
+  --red-text: #b03d24; /* Danger label text color */
+  --on-ink: #ffffff; /* Text/icon color for anything painted on an --ink fill (buttons, sidebar, toasts) */
+  --on-ink-success: #8fd0a5; /* Success icon/accent color on an --ink fill */
+  --on-ink-danger: #f0a8a0; /* Danger icon/accent color on an --ink fill */
+  --font-app: var(--font-arabic), "Tajawal", "Segoe UI", Tahoma, system-ui, sans-serif; /* Operations platform — every screen, dashboard, portal */
+  --font-report: "IBM Plex Sans Arabic", "IBM Plex Sans", "Segoe UI", Arial, sans-serif; /* Quotations, proposals, slide decks, PDF reports */
+  --font-letter: "Sakkal Majalla", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif; /* Official correspondence on the letterhead, memos, certificates */
+  --motion-fast: 120ms; /* Micro-interactions — hover/press feedback */
+  --motion-base: 150ms; /* Default transition duration */
+  --motion-slow: 280ms; /* Panel/sheet entrances (e.g. SideSheet) */
+  --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1); /* Standard easing for --motion-* transitions */
+  --sidebar-w: 260px; /* Fixed sidebar width, expanded */
+  --sidebar-w-collapsed: 72px; /* Fixed sidebar width, collapsed rail */
+  --topbar-h: 66px; /* Fixed top bar height */
+  --tabs-h: 42px; /* Fixed tab-strip height */
+  --page-gutter-x: 1rem; /* Horizontal page padding, mobile */
+  --page-gutter-x-sm: 1.5rem; /* Horizontal page padding, desktop breakpoint */
+  --page-body-y: 1rem; /* Vertical page-body padding, mobile */
+  --page-body-y-sm: 1.25rem; /* Vertical page-body padding, desktop breakpoint */
+  --panel-header-y: 0.875rem; /* Vertical padding inside panel/card headers */
+  --radius: 9px; /* Default control radius — buttons, fields, badges */
+  --radius-lg: 14px; /* Card/panel/modal radius */
+  --radius-sm: 6px; /* Small-piece radius */
+
+  /* ── Legacy app aliases (prototype.css + registration.css) — resolve to a canonical token above; write the canonical name in new work ── */
+  --primary: var(--gold-d); /* Legacy alias → --gold-d */
+  --primary-mid: var(--gold); /* Legacy alias → --gold */
+  --primary-light: var(--gold); /* Legacy alias → --gold */
+  --primary-bg: var(--gold-soft); /* Legacy alias → --gold-soft */
+  --accent: var(--gold); /* Legacy alias → --gold */
+  --accent-dark: var(--gold-d); /* Legacy alias → --gold-d */
+  --accent-light: var(--gold-soft); /* Legacy alias → --gold-soft */
+  --sidebar: var(--ink); /* Legacy alias → --ink */
+  --bg2: var(--surface-2); /* Legacy alias → --surface-2 */
+  --surface2: var(--surface-2); /* Legacy alias → --surface-2 */
+  --surface3: var(--gold-soft); /* Legacy alias → --gold-soft */
+  --border2: var(--border-md); /* Legacy alias → --border-md */
+  --text: var(--text-1); /* Legacy alias → --text-1 */
+  --text2: var(--text-2); /* Legacy alias → --text-2 */
+  --text3: var(--text-3); /* Legacy alias → --text-3 */
+  --success: var(--ink); /* Semantic "success"/"complete" fill — brand navy, NOT green */
+  --success-bg: var(--navy-soft); /* Success background wash */
+  --success-text: var(--ink); /* Success label text color */
+  --warning: var(--amber); /* Semantic warning fill (alias of --amber) */
+  --warning-bg: var(--amber-light); /* Warning background wash (alias) */
+  --danger: var(--red); /* Semantic danger fill (alias of --red) */
+  --danger-bg: var(--red-light); /* Danger background wash (alias) */
+  --info: var(--blue); /* Semantic info fill (alias of --blue) */
+  --info-bg: var(--blue-light); /* Info background wash (alias) */
+  --purple: #8e44ad; /* Extra semantic tone — used sparingly (finance tags) */
+  --purple-bg: #ebd9f7; /* Purple background wash */
+  --orange: #d35400; /* Extra semantic tone — used sparingly (finance tags) */
+  --orange-bg: #fae5d3; /* Orange background wash */
+  --shadow: 0 1px 2px rgba(18, 40, 76, 0.03), 0 6px 16px -18px rgba(18, 40, 76, 0.1); /* Resting panel shadow — whisper-quiet navy */
+  --shadow-lg: 0 10px 28px -8px rgba(18, 40, 76, 0.28); /* Menu/dropdown elevation shadow */
+
+  /* ── Layer scale (z-index) — use these tokens instead of raw numbers for app-wide layers ── */
+  --z-sticky: 20; /* Sticky bars / headers inside the page */
+  --z-dropdown: 30; /* Dropdown menus and search */
+  --z-chrome: 50; /* App chrome: sidebar and top bar */
+  --z-banner: 90; /* Floating banners above the chrome, below modals (PWA install, etc.) */
+  --z-modal: 1000; /* Dialogs and their backdrops */
+  --z-modal-2: 1100; /* Modal stacked on top of a modal */
+  --z-lightbox: 1200; /* Full-screen previews above modals */
+  --z-toast: 1300; /* Toasts above everything interactive */
+}
+
+/* ── Dark theme (docs/new look) — overrides raw values; aliases follow via var(). ── */
+html[data-theme="dark"] {
+  --ink: #122844; /* Dark-mode brand navy */
+  --navy-3: #1c3252; /* Dark-mode hover navy */
+  --gold: #c2a878; /* Dark-mode accent gold (brightened for contrast on dark surfaces) */
+  --gold-d: #d6bd8c; /* Dark-mode gold text color */
+  --gold-2: #e0cca0; /* Dark-mode secondary gold tint */
+  --gold-soft: rgba(194, 168, 120, 0.16); /* Dark-mode gold wash */
+  --heading: #f3f6fb; /* Dark-mode heading text color */
+  --row-hover: #242e40; /* Dark-mode row hover background */
+
+  --bg: #161d2a; /* Dark-mode page background */
+  --surface: #1e2636; /* Dark-mode card/panel background */
+  --surface-2: #262f42; /* Dark-mode subtle panel background */
+  --border: #2f3a4e; /* Dark-mode hairline border */
+  --border-md: #3a4761; /* Dark-mode stronger hairline */
+  --text-1: #dce3ee; /* Dark-mode primary text — readable on slate */
+  --text-2: #b7c2d4; /* Dark-mode secondary text — field labels and meta */
+  --text-3: #96a2b8; /* Dark-mode muted text — still above the old gray that disappeared */
+  --red: #d9694f; /* Dark-mode danger fill — unchanged from the pre-AA-fix value */
+  --on-ink: #f3f5f9; /* Dark-mode text/icon color on an --ink fill */
+  /* Label colors sit on translucent washes. The light-theme values are dark
+     paints, so they disappear on slate. These stay light enough to read. */
+  --success-text: var(--heading);
+  --amber-text: #f0d090;
+  --red-text: #f3b5a8;
+  --blue-text: #a9cff6;
+
+  --surface3: rgba(194, 168, 120, 0.16); /* Dark-mode legacy alias → gold wash */
+  --navy-soft: color-mix(in srgb, var(--ink) 18%, transparent); /* Dark-mode navy wash */
+  --amber-light: rgba(217, 164, 65, 0.18); /* Dark-mode warning wash */
+  --red-light: rgba(217, 105, 79, 0.18); /* Dark-mode danger wash */
+  --blue-light: rgba(55, 138, 221, 0.18); /* Dark-mode info wash */
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 6px 16px -18px rgba(0, 0, 0, 0.5); /* Dark-mode resting panel shadow */
+  --shadow-lg: 0 10px 28px -8px rgba(0, 0, 0, 0.55); /* Dark-mode menu elevation shadow */
+}
