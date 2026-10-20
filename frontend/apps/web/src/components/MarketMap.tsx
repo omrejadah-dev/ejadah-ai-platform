@@ -39,8 +39,8 @@ export function MarketMap() {
   const covered = map.data?.features.filter((f) => (metric === "ppm" ? f.properties.ppm : f.properties.n12)).length ?? 0;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-4 py-3">
+    <Card>
+      <div className="flex flex-wrap items-center gap-2 rounded-t-[var(--radius-lg)] border-b border-border bg-surface-2 px-4 py-3">
         <span className="me-2 font-bold text-heading">خريطة الأسعار</span>
         <Select className="!w-auto" value={cityId} onChange={(e) => { setCityId(Number(e.target.value)); setSelected(null); }}>
           {cities.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
