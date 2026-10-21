@@ -16,7 +16,12 @@ public sealed record PricingBreakdown(
     decimal MarketPpm, decimal MarketTotal,
     IReadOnlyList<AdjustmentItem> Items, decimal RulesPct, bool RulesCapped,
     decimal? AiPct, string? AiReason,
-    decimal FinalPpm, decimal FinalTotal);
+    decimal FinalPpm, decimal FinalTotal)
+{
+    /// <summary>What the AI found in the notes (labels with up/down), and whether it was the trial reader or Claude.</summary>
+    public IReadOnlyList<Ai.NotesItem>? AiItems { get; init; }
+    public string? AiProvider { get; init; }
+}
 
 public static class Adjustments
 {

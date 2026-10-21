@@ -1,3 +1,4 @@
+using Ejadah.Ai.Api.Ai;
 using Ejadah.Ai.Api.Auth;
 using Ejadah.Ai.Api.Estimates;
 using Ejadah.Ai.Api.Infrastructure;
@@ -11,6 +12,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddMemoryCache();
 builder.Services.AddEjadahDatabase(builder.Configuration);
 builder.Services.AddEjadahAuth(builder.Configuration, builder.Environment);
+builder.Services.AddEjadahAi(builder.Configuration);   // Claude once an Anthropic key is set, the trial reader until then
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:3000"])
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
@@ -29,10 +31,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).ExcludeFromDescription();
-app.MapGet("/ready", async (Db db, CancellationToken ct) =>
+app.MapGet("/ready", async (Db db, INotesAssessor ai, CancellationToken ct) =>
 {
     var asOf = await db.ScalarAsync<DateTime?>("select data_as_of from market.v_meta", ct: ct);
-    return asOf is null ? Results.Problem("market data not loaded", statusCode: 503) : Results.Ok(new { status = "ready", dataAsOf = asOf });
+    return asOf is null ? Results.Problem("market data not loaded", statusCode: 503) : Results.Ok(new { status = "ready", dataAsOf = asOf, ai = ai.Provider });
 }).ExcludeFromDescription();
 
 app.MapAuthEndpoints();

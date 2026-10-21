@@ -94,7 +94,14 @@ export type EstimateResult = {
   plot_history?: { date: string; price: number; area: number; ppm: number }[] | null;
   data_as_of: string;
 };
-export type EstimateResponse = { id: string; request: EstimateRequest; result: EstimateResult; grossYieldPct: number | null; durationMs: number; createdAt?: string };
+/** Market price → age / floors / features (admin table) → AI reading of the notes → one final price. */
+export type PricingBreakdown = {
+  marketPpm: number; marketTotal: number;
+  items: { factor: string; label: string; pct: number }[]; rulesPct: number; rulesCapped: boolean;
+  aiPct: number | null; aiReason: string | null; aiItems?: { label: string; effect: "up" | "down" | "none" }[] | null; aiProvider?: string | null;
+  finalPpm: number; finalTotal: number;
+};
+export type EstimateResponse = { id: string; request: EstimateRequest; result: EstimateResult; grossYieldPct: number | null; durationMs: number; createdAt?: string; pricing?: PricingBreakdown | null };
 export type ValuationSummary = { id: string; createdAt: string; typeGroup: PropertyType; areaM2: number; city: string; district: string | null; confidence: string; ppmEstimate: number | null; totalEstimate: number | null };
 
 export const TYPE_LABEL: Record<PropertyType, string> = { land: "أرض", villa: "فيلا", apartment: "شقة", building: "عمارة" };

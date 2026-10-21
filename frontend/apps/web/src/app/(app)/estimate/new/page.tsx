@@ -138,7 +138,7 @@ function NewEstimateInner() {
             <Input id="area" type="number" inputMode="decimal" min={minA} max={maxA} value={area} onChange={(e) => setArea(e.target.value)} dir="ltr" />
           </FormGroup>
           {type !== "land" ? (
-            <FormGroup label="العمر (سنوات)" htmlFor="age" hint="لا يدخل في السعر السوقي، يقرؤه الذكاء الاصطناعي">
+            <FormGroup label="العمر (سنوات)" htmlFor="age" hint="يُعدَّل السعر بنسبة العمر التي تحددها إجادة، ويظهر التعديل تحت السعر">
               <Input id="age" type="number" min={0} max={60} value={age} onChange={(e) => setAge(e.target.value)} dir="ltr" />
             </FormGroup>
           ) : null}
@@ -174,7 +174,7 @@ function NewEstimateInner() {
             </div>
           ) : null}
           <div className="sm:col-span-2">
-            <FormGroup label="معلومات إضافية" htmlFor="notes" hint="أي شيء غير موجود في الحقول: دخل من مكينة، واجهة، شارع تجاري… يقرؤه الذكاء الاصطناعي فقط">
+            <FormGroup label="معلومات إضافية" htmlFor="notes" hint="أي شيء غير موجود في الحقول: دخل من مكينة، واجهة، شارع تجاري… يقرؤه الذكاء الاصطناعي ويعدّل السعر بنسبة محدودة، ويظهر السبب تحت السعر">
               <Textarea id="notes" rows={3} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </FormGroup>
           </div>

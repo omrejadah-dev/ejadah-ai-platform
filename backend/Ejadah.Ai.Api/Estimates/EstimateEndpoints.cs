@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Ejadah.Ai.Api.Ai;
 using Ejadah.Ai.Api.Auth;
 using Ejadah.Ai.Api.Infrastructure;
 
@@ -14,7 +15,7 @@ public static class EstimateEndpoints
     {
         var g = app.MapGroup("/api/estimates").WithTags("Estimates").RequireAuthorization(Capabilities.PriceEstimate);
 
-        g.MapPost("/", async (EstimateRequest req, HttpContext http, Db db, CancellationToken ct) =>
+        g.MapPost("/", async (EstimateRequest req, HttpContext http, Db db, INotesAssessor ai, ILoggerFactory logs, CancellationToken ct) =>
         {
             var seatId = http.User.PrincipalId(); var accountId = http.User.AccountId();
             var errors = req.Validate();
@@ -50,20 +51,32 @@ public static class EstimateEndpoints
             int? level = root.TryGetProperty("level_used", out var l) && l.ValueKind == JsonValueKind.Number ? l.GetInt32() : null;
             int? sample = root.TryGetProperty("sample_size", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : null;
 
-            // market price -> age / floors / features from the admin table -> final price (the AI step from the notes joins here later)
-            PricingBreakdown? pricing = null;
-            if (req.PropertyType != "land")
+            // market price -> age / floors / features from the admin table -> AI reading of the notes -> one final price
+            var marketPpm = Num(root, "ppm_estimate");
+            var marketTotal = Num(root, "total_estimate");
+            var items = req.PropertyType == "land" ? [] : Adjustments.Evaluate(req, await Adjustments.RulesAsync(db, req.PropertyType, ct));
+            var rulesCap = await Adjustments.SettingAsync(db, "rules_max_total_pct", 30, ct);
+
+            NotesAssessment? assessment = null;
+            AiCallLog? aiLog = null;
+            if (!string.IsNullOrWhiteSpace(req.Notes) && marketTotal > 0)
             {
-                var items = Adjustments.Evaluate(req, await Adjustments.RulesAsync(db, req.PropertyType, ct));
-                var cap = await Adjustments.SettingAsync(db, "rules_max_total_pct", 30, ct);
-                pricing = Adjustments.Build(Num(root, "ppm_estimate"), Num(root, "total_estimate"), items, cap);
+                var names = await db.SingleOrDefaultAsync<(string City, string District)>(
+                    "select c.name, d.name from market.districts d join market.cities c on c.id = d.city_id where d.id = @id", new { id = req.DistrictId }, ct);
+                var input = new NotesInput(req.PropertyType, names.City, names.District, req.AreaM2, req.AgeYears, req.Floors, req.Units,
+                    req.AnnualIncome, req.Features, req.Notes.Trim(), marketTotal.Value, marketPpm ?? 0,
+                    await Adjustments.SettingAsync(db, "ai_max_pct", 15, ct));
+                (assessment, aiLog) = await AssessNotes(ai, input, logs.CreateLogger("Ejadah.Ai"), ct);
             }
-            else pricing = Adjustments.Build(Num(root, "ppm_estimate"), Num(root, "total_estimate"), [], 0);
+
+            var pricing = Adjustments.Build(marketPpm, marketTotal, items, rulesCap, assessment?.Pct, assessment?.Reason);
+            if (pricing is not null && assessment is not null)
+                pricing = pricing with { AiItems = assessment.Items, AiProvider = assessment.Provider };
 
             var id = await db.ScalarAsync<Guid>(
                 """
-                insert into app.valuations (seat_id, account_id, city_id, district_id, type_group, area_m2, plan_no, plot_no, request, result, confidence, level_used, sample_size, duration_ms, adjustments)
-                values (@seatId, @accountId, @cityId, @districtId, @type, @area, @plan, @plot, @request::jsonb, @result::jsonb, @confidence, @level, @sample, @ms, @adjustments::jsonb)
+                insert into app.valuations (seat_id, account_id, city_id, district_id, type_group, area_m2, plan_no, plot_no, request, result, confidence, level_used, sample_size, duration_ms, adjustments, ai_adjustment)
+                values (@seatId, @accountId, @cityId, @districtId, @type, @area, @plan, @plot, @request::jsonb, @result::jsonb, @confidence, @level, @sample, @ms, @adjustments::jsonb, @ai::jsonb)
                 returning id
                 """,
                 new
@@ -71,7 +84,9 @@ public static class EstimateEndpoints
                     seatId, accountId, cityId = req.CityId, districtId = req.DistrictId, type = req.PropertyType, area = req.AreaM2, plan = req.PlanNo, plot = req.PlotNo,
                     request = JsonSerializer.Serialize(req, Json), result = resultJson, confidence, level, sample, ms = (int)sw.ElapsedMilliseconds,
                     adjustments = pricing is null ? null : JsonSerializer.Serialize(pricing, Json),
+                    ai = assessment is null ? null : JsonSerializer.Serialize(assessment, Json),
                 }, ct);
+            if (aiLog is not null) await LogAiCall(db, aiLog with { SeatId = seatId, ValuationId = id }, ct);
 
             // gross yield as information only (spec 6.5 step 6)
             decimal? grossYield = null;
@@ -108,6 +123,41 @@ public static class EstimateEndpoints
 
     private static decimal? Num(JsonElement root, string name) =>
         root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : null;
+
+    private static readonly TimeSpan AiTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>Runs the notes reading with a time limit. Any failure returns no assessment: the price is never held back by the AI.</summary>
+    private static async Task<(NotesAssessment?, AiCallLog)> AssessNotes(INotesAssessor ai, NotesInput input, ILogger log, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(AiTimeout);
+        try
+        {
+            var a = await ai.AssessAsync(input, cts.Token);
+            return (a, new AiCallLog("assess-notes", ai.Provider, a.Model, true, (int)sw.ElapsedMilliseconds, a.InputTokens, a.OutputTokens, null,
+                                     JsonSerializer.Serialize(a, Json)));
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            log.LogWarning(ex, "assess-notes failed after {Ms} ms; pricing continues without the AI line", sw.ElapsedMilliseconds);
+            var error = ex is OperationCanceledException ? "timeout" : ex.GetType().Name + ": " + ex.Message;
+            return (null, new AiCallLog("assess-notes", ai.Provider, null, false, (int)sw.ElapsedMilliseconds, null, null, error, null));
+        }
+    }
+
+    private static Task LogAiCall(Db db, AiCallLog l, CancellationToken ct) => db.ExecuteAsync(
+        """
+        insert into ops.ai_calls (feature, provider, model, seat_id, valuation_id, ok, duration_ms, input_tokens, output_tokens, error, output)
+        values (@Feature, @Provider, @Model, @SeatId, @ValuationId, @Ok, @DurationMs, @InputTokens, @OutputTokens, @Error, @Output::jsonb)
+        """, l, ct);
+}
+
+internal sealed record AiCallLog(string Feature, string Provider, string? Model, bool Ok, int DurationMs, int? InputTokens, int? OutputTokens,
+                                 string? Error, string? Output)
+{
+    public Guid? SeatId { get; init; }
+    public Guid? ValuationId { get; init; }
 }
 
 public sealed record EstimateResponse(Guid Id, EstimateRequest Request, JsonElement Result, decimal? GrossYieldPct, int DurationMs)
