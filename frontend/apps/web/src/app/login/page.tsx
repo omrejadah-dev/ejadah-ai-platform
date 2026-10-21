@@ -14,11 +14,9 @@ const REASON_TEXT: Record<string, string> = {
 };
 
 
-const input =
-  "h-[52px] w-full rounded-xl border border-border-md bg-surface-2 px-4 text-[16px] text-text outline-none transition placeholder:text-text-3 focus:border-gold focus:bg-surface focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--gold)_18%,transparent)]";
+const input = "h-[52px] w-full rounded-xl border border-border-md bg-surface-2 px-4 text-[16px] text-text outline-none transition placeholder:text-text-3 focus:border-gold focus:bg-surface focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--gold)_18%,transparent)]";
 const inputBad = "border-danger shadow-[0_0_0_4px_color-mix(in_srgb,var(--red)_12%,transparent)]";
-const primary =
-  "flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-ink text-[15.5px] font-bold text-white shadow-[0_14px_30px_-16px_rgba(16,43,78,.85)] transition hover:enabled:bg-navy-3 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none";
+const primary = "flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-ink text-[15.5px] font-bold text-white shadow-[0_14px_30px_-16px_rgba(16,43,78,.85)] transition hover:enabled:bg-navy-3 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none";
 
 function Message({ children, tone }: { children: string; tone: "danger" | "info" }) {
   return (
@@ -107,14 +105,14 @@ function LoginInner() {
 
   return (
     <div className="relative min-h-svh overflow-hidden bg-ink text-white">
-      {/* backdrop: light wash + Jeddah districts drawn in gold by land price */}
+      {/* backdrop: light wash + the Kingdom (13 regions, districts in gold by land price) */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_78%_35%,rgba(200,181,145,.16),transparent_65%),radial-gradient(60%_70%_at_0%_100%,rgba(34,64,110,.7),transparent_70%)]" aria-hidden />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/jeddah-districts.svg" alt="" aria-hidden
-        className="pointer-events-none absolute -top-[5%] start-[4%] hidden h-[112%] w-auto opacity-80 animate-[map-in_1.4s_ease-out_both] lg:block" />
+      <img src="/brand/kingdom-map.svg" alt="" aria-hidden
+        className="pointer-events-none absolute inset-0 m-auto hidden h-[94svh] w-auto max-w-[96vw] object-contain opacity-90 animate-[map-in_1.4s_ease-out_both] lg:block" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/jeddah-districts.svg" alt="" aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[62svh] w-auto opacity-30 [mask-image:linear-gradient(to_bottom,black_45%,transparent)] lg:hidden" />
+      <img src="/brand/kingdom-map.svg" alt="" aria-hidden
+        className="pointer-events-none absolute left-1/2 top-[3svh] w-[125vw] max-w-none -translate-x-1/2 opacity-50 [mask-image:linear-gradient(to_bottom,black_60%,transparent)] lg:hidden" />
 
       <div className="relative flex min-h-svh items-center justify-center px-5 py-8">
 
