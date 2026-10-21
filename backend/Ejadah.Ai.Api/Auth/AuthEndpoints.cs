@@ -42,7 +42,7 @@ public static class AuthEndpoints
 
             var echo = env.IsDevelopment() && cfg.GetValue("Sms:EchoCodeInResponse", false);
             return Results.Ok(new { sentTo = PhoneNumber.Mask(phone), expiresInSeconds = OtpTtlMinutes * 60, devCode = echo ? code : null });
-        }).WithSummary("إرسال رمز التحقق (SMS وهمي في التطوير)");
+        }).RequireRateLimiting(RateLimits.Otp).WithSummary("إرسال رمز التحقق (SMS وهمي في التطوير)");
 
         // ---- 2. verify → session (replaces any other active session of this principal) -----
         g.MapPost("/verify", async (VerifyRequest req, HttpContext http, Db db, TokenService tokens, JwtOptions jwt, CancellationToken ct) =>
@@ -89,7 +89,7 @@ public static class AuthEndpoints
             await Audit(db, principal.Kind, principal.Id, "auth.login", phone, http, new { replacedSessions = replaced }, ct);
             SetCookies(http, jwt, tokens.IssueAccess(principal.ToPrincipal(), sessionId), refresh);
             return Results.Ok(principal.ToMe() with { });
-        }).WithSummary("التحقق من الرمز وفتح الجلسة. الدخول الجديد يُنهي الجلسة السابقة");
+        }).RequireRateLimiting(RateLimits.Verify).WithSummary("التحقق من الرمز وفتح الجلسة. الدخول الجديد يُنهي الجلسة السابقة");
 
         // ---- 3. refresh (sliding 30 days; rotates the refresh token) -----------------------
         g.MapPost("/refresh", async (HttpContext http, Db db, TokenService tokens, JwtOptions jwt, CancellationToken ct) =>

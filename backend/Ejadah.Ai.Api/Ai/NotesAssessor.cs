@@ -127,18 +127,26 @@ public sealed class AnthropicNotesAssessor(AnthropicClient client, string model)
 public static class AiRegistration
 {
     /// <summary>Claude when an API key is configured (Anthropic:ApiKey or ANTHROPIC_API_KEY), the trial reader otherwise.</summary>
-    public static IServiceCollection AddEjadahAi(this IServiceCollection services, IConfiguration config, ILogger? log = null)
+    public static IServiceCollection AddEjadahAi(this IServiceCollection services, IConfiguration config)
     {
         var key = config["Anthropic:ApiKey"];
         if (string.IsNullOrWhiteSpace(key)) key = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            services.AddSingleton<INotesAssessor, MockNotesAssessor>();
-            return services;
-        }
         var model = config["Anthropic:Model"] ?? "claude-opus-5-5";
-        services.AddSingleton(new AnthropicClient { ApiKey = key });
-        services.AddSingleton<INotesAssessor>(sp => new AnthropicNotesAssessor(sp.GetRequiredService<AnthropicClient>(), model));
+        if (!string.IsNullOrWhiteSpace(key)) services.AddSingleton(new AnthropicClient { ApiKey = key });
+
+        // guard: N calls in flight, then a breaker after repeated failures (Ai section of the settings)
+        var ai = config.GetSection("Ai");
+        services.AddSingleton<INotesAssessor>(sp =>
+        {
+            INotesAssessor inner = string.IsNullOrWhiteSpace(key)
+                ? new MockNotesAssessor()
+                : new AnthropicNotesAssessor(sp.GetRequiredService<AnthropicClient>(), model);
+            return new ResilientNotesAssessor(inner,
+                maxConcurrent: ai.GetValue("MaxConcurrent", 8),
+                queueWait: TimeSpan.FromSeconds(ai.GetValue("QueueWaitSeconds", 5)),
+                breakAfter: ai.GetValue("BreakAfterFailures", 5),
+                breakFor: TimeSpan.FromSeconds(ai.GetValue("BreakSeconds", 60)));
+        });
         return services;
     }
 }

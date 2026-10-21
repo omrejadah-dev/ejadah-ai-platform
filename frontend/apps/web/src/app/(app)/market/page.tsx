@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, FormGroup, Input, Select } from "@platform/ui-kit";
 import { TrendChart } from "@/components/TrendChart";
@@ -9,12 +9,12 @@ import { api, TYPE_LABEL, type City, type District, type PropertyType, type Tren
 type Row = { year: number; ppmMedian: number; nDeals: number };
 
 export default function MarketPage() {
-  const [cityId, setCityId] = useState<number | "">("");
+  const [pickedCity, setCityId] = useState<number | "">("");
   const [type, setType] = useState<PropertyType>("land");
   const [q, setQ] = useState("");
   const [district, setDistrict] = useState<District | null>(null);
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/api/cities") });
-  useEffect(() => { if (cities.data?.length && cityId === "") setCityId(cities.data[0].id); }, [cities.data, cityId]);
+  const cityId: number | "" = pickedCity !== "" ? pickedCity : (cities.data?.[0]?.id ?? "");
   const districts = useQuery({ queryKey: ["districts", cityId, q], queryFn: () => api<District[]>(`/api/cities/${cityId}/districts?q=${encodeURIComponent(q)}&limit=10`), enabled: cityId !== "" && q.length > 0 });
   const hist = useQuery({ queryKey: ["history", district?.id, type], queryFn: () => api<Row[]>(`/api/districts/${district!.id}/history?type=${type}`), enabled: !!district });
   const trend: TrendPoint[] | undefined = hist.data?.map((r) => ({ year: r.year, ppm_median: r.ppmMedian, n_deals: r.nDeals }));

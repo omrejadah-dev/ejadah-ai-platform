@@ -1,0 +1,52 @@
+# Build and check on every push; on main, build the two images and deploy them to the server
+# (docs/system-design.md section 6). Deploy needs these repository secrets:
+#   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY  (the server keeps infra/.env with the app secrets)
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "10.0.x" }
+      - run: dotnet build backend/Ejadah.Ai.Api/Ejadah.Ai.Api.csproj -c Release
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    env: { PUPPETEER_SKIP_DOWNLOAD: "1" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull, rebuild and restart on the server (previous images stay tagged for rollback)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/ejadah
+            git fetch --all && git checkout ${{ github.sha }}
+            docker tag ejadah-api:latest ejadah-api:previous || true
+            docker tag ejadah-web:latest ejadah-web:previous || true
+            docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile db up -d --build
+            sleep 15 && curl -fsS http://localhost/ready
+            # rollback: TAG=previous docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile db up -d

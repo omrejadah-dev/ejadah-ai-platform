@@ -95,7 +95,7 @@ public static class EstimateEndpoints
 
             await AuthEndpoints.Audit(db, "seat", seatId, "estimate.created", id.ToString(), http, new { req.PropertyType, req.CityId, req.DistrictId, confidence }, ct);
             return Results.Created($"/api/estimates/{id}", new EstimateResponse(id, req, root.Clone(), grossYield, (int)sw.ElapsedMilliseconds) { Pricing = pricing });
-        }).WithSummary("تسعير عقار: يشغّل محرك التسعير ويحفظ النتيجة");
+        }).RequireRateLimiting(RateLimits.Estimate).WithSummary("تسعير عقار: يشغّل محرك التسعير ويحفظ النتيجة");
 
         g.MapGet("/{id:guid}", async (Guid id, HttpContext http, Db db, CancellationToken ct) =>
         {

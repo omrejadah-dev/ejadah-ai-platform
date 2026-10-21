@@ -18,7 +18,7 @@ type Period = "recent" | number;
 type MapRegion = { region: string; deals: number; cities: { id: number; name: string; districts: number; deals: number }[] };
 
 export function MarketMap() {
-  const [cityId, setCityId] = useState<number | "">("");
+  const [pickedCity, setCityId] = useState<number | "">("");
   const [type, setType] = useState<PropertyType>("land");
   const [metric, setMetric] = useState<Metric>("ppm");
   const [period, setPeriod] = useState<Period>("recent");
@@ -27,14 +27,13 @@ export function MarketMap() {
   const [kingdom, setKingdom] = useState(false);
 
   // all 13 regions → their cities that have district polygons
-  const [region, setRegion] = useState<string>("");
+  const [pickedRegion, setRegion] = useState<string>("");
   const regions = useQuery({ queryKey: ["map-cities"], queryFn: () => api<MapRegion[]>("/api/map/cities"), staleTime: 60 * 60_000 });
-  useEffect(() => {
-    if (!regions.data?.length || region) return;
-    const r = regions.data.find((x) => x.region === "مكة المكرمة") ?? regions.data[0];
-    setRegion(r.region);
-    setCityId((r.cities.find((c) => c.name.startsWith("جد")) ?? r.cities[0]).id);
-  }, [regions.data, region]);
+  // until the user picks, Makkah region and Jeddah are the default (derived, not copied into state)
+  const defaultRegion = regions.data?.find((x) => x.region === "مكة المكرمة") ?? regions.data?.[0];
+  const region = pickedRegion || defaultRegion?.region || "";
+  const cityId: number | "" = pickedCity !== "" ? pickedCity
+    : ((defaultRegion?.cities.find((c) => c.name.startsWith("جد")) ?? defaultRegion?.cities[0])?.id ?? "");
   const regionCities = regions.data?.find((r) => r.region === region)?.cities ?? [];
 
   const map = useQuery({

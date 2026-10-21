@@ -27,7 +27,7 @@ function NewEstimateInner() {
   const preCity = Number(params.get("cityId")) || "";
   const preDistrict = Number(params.get("districtId")) && params.get("districtName")
     ? { id: Number(params.get("districtId")), name: params.get("districtName")!, nMarketDeals: 0 } : null;
-  const [cityId, setCityId] = useState<number | "">(preCity);
+  const [pickedCity, setCityId] = useState<number | "">(preCity);
   const [district, setDistrict] = useState<District | null>(preDistrict);
   const [districtQ, setDistrictQ] = useState(preDistrict?.name ?? "");
   const [planNo, setPlanNo] = useState("");
@@ -42,7 +42,8 @@ function NewEstimateInner() {
   const [error, setError] = useState<string | null>(null);
 
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/api/cities") });
-  useEffect(() => { if (cities.data?.length && cityId === "") setCityId(cities.data[0].id); }, [cities.data, cityId]);
+  // until the user picks one, the first city is the default (derived, not copied into state)
+  const cityId: number | "" = pickedCity !== "" ? pickedCity : (cities.data?.[0]?.id ?? "");
 
   const q = useDebounced(districtQ);
   const districts = useQuery({

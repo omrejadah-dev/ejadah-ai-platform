@@ -1,0 +1,6 @@
+**/node_modules
+**/.next
+**/.next-test
+**/*.tsbuildinfo
+e2e-shots.mjs
+Dockerfile

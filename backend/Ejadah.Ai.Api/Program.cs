@@ -5,6 +5,14 @@ using Ejadah.Ai.Api.Infrastructure;
 using Ejadah.Ai.Api.Market;
 using Scalar.AspNetCore;
 
+// container health check (the aspnet image has no curl): `dotnet Ejadah.Ai.Api.dll --healthcheck` asks the running server for /health
+if (args.Contains("--healthcheck"))
+{
+    using var probe = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+    try { Environment.Exit((await probe.GetAsync("http://127.0.0.1:8080/health")).IsSuccessStatusCode ? 0 : 1); }
+    catch { Environment.Exit(1); }
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
@@ -13,12 +21,14 @@ builder.Services.AddMemoryCache();
 builder.Services.AddEjadahDatabase(builder.Configuration);
 builder.Services.AddEjadahAuth(builder.Configuration, builder.Environment);
 builder.Services.AddEjadahAi(builder.Configuration);   // Claude once an Anthropic key is set, the trial reader until then
+builder.Services.AddEjadahRateLimits(builder.Configuration);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:3000"])
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();   // real client IP from nginx / the Next.js proxy, for the per-IP limits
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 if (app.Environment.IsDevelopment())
@@ -29,6 +39,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();        // after authentication so per-seat limits see the signed-in seat
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).ExcludeFromDescription();
 app.MapGet("/ready", async (Db db, INotesAssessor ai, CancellationToken ct) =>

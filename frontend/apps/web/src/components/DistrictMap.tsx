@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { colorFor } from "./mapScale";
@@ -49,7 +49,10 @@ export function DistrictMap({
   const layer = useRef<L.GeoJSON | null>(null);
   const cityLayer = useRef<L.GeoJSON | null>(null);
   const cb = useRef({ onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel });
-  cb.current = { onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel };
+  // latest props for Leaflet's handlers; a layout effect runs after render and before every effect below
+  useLayoutEffect(() => {
+    cb.current = { onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel };
+  });
 
   function restyle(path: L.Path, p: DistrictProps) {
     const v = cb.current.valueOf(p);
@@ -102,8 +105,11 @@ export function DistrictMap({
     if (!el.current || map.current) return;
     const m = L.map(el.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: true, zoomSnap: 0.25 }).setView([21.55, 39.2], 10.5);
     map.current = m;
-    // OSM standard tiles: fine for development; switch to a hosted tile provider (or self-hosted) before production traffic.
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap", maxZoom: 18 }).addTo(m);
+    // Base tiles: OSM standard for development. Production sets NEXT_PUBLIC_TILE_URL (+ _ATTRIBUTION) to a hosted provider
+    // (MapTiler, Stadia…) or self-hosted tiles: OSM's policy does not allow production traffic. The districts draw without it.
+    L.tileLayer(process.env.NEXT_PUBLIC_TILE_URL || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: process.env.NEXT_PUBLIC_TILE_ATTRIBUTION || "&copy; OpenStreetMap", maxZoom: 18,
+    }).addTo(m);
     m.on("zoomend", applyLevel);
 
     // "Kingdom" button under the zoom control
@@ -123,7 +129,6 @@ export function DistrictMap({
     const ro = new ResizeObserver(() => m.invalidateSize());
     ro.observe(el.current);
     return () => { ro.disconnect(); m.remove(); map.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // districts of the current city: rebuilt only when the dataset (city/type) changes
