@@ -3,7 +3,6 @@
 import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@platform/ui-kit";
-import { EjadaLogo } from "@/components/EjadaLogo";
 import { api, ApiError, type Me } from "@/lib/api";
 
 const REASON_TEXT: Record<string, string> = {
@@ -118,9 +117,7 @@ function LoginInner() {
 
         {/* card */}
         <section className="relative w-full max-w-[440px]">
-          <div className="mb-6 flex justify-center">
-            <EjadaLogo variant="onDark" className="h-auto w-[132px]" />
-          </div>
+          {/* logo removed until Ejadah sends the correct one (it goes back here, above the card) */}
           <div className="rounded-[22px] bg-surface p-7 text-text shadow-[0_40px_80px_-30px_rgba(0,0,0,.55)] sm:p-8">
             {step === "phone" ? (
               <div key="phone" className="animate-[login-rise_0.35s_ease]">

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn, Spinner } from "@platform/ui-kit";
-import { EjadaLogo } from "@/components/EjadaLogo";
 import { api, type Me } from "@/lib/api";
 import { ROLE_LABEL } from "@/lib/ui";
 import { MeContext } from "@/providers/MeProvider";
@@ -53,7 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-svh bg-bg">
         <header className="sticky top-0 z-20 border-b border-border bg-ink text-white">
           <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-4 px-4">
-            <Link href="/" className="flex items-center"><EjadaLogo variant="onDark" className="h-auto w-[104px]" /></Link>
+            {/* logo removed until Ejadah sends the correct one (it goes back here as the home link) */}
             <nav className="hidden items-center gap-1 md:flex">
               {visible.map((n) => (
                 <Link key={n.href} href={n.href}
