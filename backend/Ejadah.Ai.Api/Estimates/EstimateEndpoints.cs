@@ -50,36 +50,48 @@ public static class EstimateEndpoints
             int? level = root.TryGetProperty("level_used", out var l) && l.ValueKind == JsonValueKind.Number ? l.GetInt32() : null;
             int? sample = root.TryGetProperty("sample_size", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : null;
 
+            // market price -> age / floors / features from the admin table -> final price (the AI step from the notes joins here later)
+            PricingBreakdown? pricing = null;
+            if (req.PropertyType != "land")
+            {
+                var items = Adjustments.Evaluate(req, await Adjustments.RulesAsync(db, req.PropertyType, ct));
+                var cap = await Adjustments.SettingAsync(db, "rules_max_total_pct", 30, ct);
+                pricing = Adjustments.Build(Num(root, "ppm_estimate"), Num(root, "total_estimate"), items, cap);
+            }
+            else pricing = Adjustments.Build(Num(root, "ppm_estimate"), Num(root, "total_estimate"), [], 0);
+
             var id = await db.ScalarAsync<Guid>(
                 """
-                insert into app.valuations (seat_id, account_id, city_id, district_id, type_group, area_m2, plan_no, plot_no, request, result, confidence, level_used, sample_size, duration_ms)
-                values (@seatId, @accountId, @cityId, @districtId, @type, @area, @plan, @plot, @request::jsonb, @result::jsonb, @confidence, @level, @sample, @ms)
+                insert into app.valuations (seat_id, account_id, city_id, district_id, type_group, area_m2, plan_no, plot_no, request, result, confidence, level_used, sample_size, duration_ms, adjustments)
+                values (@seatId, @accountId, @cityId, @districtId, @type, @area, @plan, @plot, @request::jsonb, @result::jsonb, @confidence, @level, @sample, @ms, @adjustments::jsonb)
                 returning id
                 """,
                 new
                 {
                     seatId, accountId, cityId = req.CityId, districtId = req.DistrictId, type = req.PropertyType, area = req.AreaM2, plan = req.PlanNo, plot = req.PlotNo,
                     request = JsonSerializer.Serialize(req, Json), result = resultJson, confidence, level, sample, ms = (int)sw.ElapsedMilliseconds,
+                    adjustments = pricing is null ? null : JsonSerializer.Serialize(pricing, Json),
                 }, ct);
 
             // gross yield as information only (spec 6.5 step 6)
             decimal? grossYield = null;
-            if (req.AnnualIncome is > 0 && root.TryGetProperty("total_estimate", out var te) && te.ValueKind == JsonValueKind.Number && te.GetDecimal() > 0)
-                grossYield = Math.Round(100m * req.AnnualIncome.Value / te.GetDecimal(), 2);
+            if (req.AnnualIncome is > 0 && pricing?.FinalTotal > 0)
+                grossYield = Math.Round(100m * req.AnnualIncome.Value / pricing.FinalTotal, 2);
 
             await AuthEndpoints.Audit(db, "seat", seatId, "estimate.created", id.ToString(), http, new { req.PropertyType, req.CityId, req.DistrictId, confidence }, ct);
-            return Results.Created($"/api/estimates/{id}", new EstimateResponse(id, req, root.Clone(), grossYield, (int)sw.ElapsedMilliseconds));
+            return Results.Created($"/api/estimates/{id}", new EstimateResponse(id, req, root.Clone(), grossYield, (int)sw.ElapsedMilliseconds) { Pricing = pricing });
         }).WithSummary("تسعير عقار: يشغّل محرك التسعير ويحفظ النتيجة");
 
         g.MapGet("/{id:guid}", async (Guid id, HttpContext http, Db db, CancellationToken ct) =>
         {
-            var row = await db.SingleOrDefaultAsync<(string Request, string Result, int? DurationMs, DateTime CreatedAt)>(
-                "select request::text, result::text, duration_ms, created_at from app.valuations where id = @id and (seat_id = @seatId or account_id = @accountId)",
+            var row = await db.SingleOrDefaultAsync<(string Request, string Result, int? DurationMs, DateTime CreatedAt, string? Adjustments)>(
+                "select request::text, result::text, duration_ms, created_at, adjustments::text from app.valuations where id = @id and (seat_id = @seatId or account_id = @accountId)",
                 new { id, seatId = http.User.PrincipalId(), accountId = http.User.AccountId() }, ct);
             if (row == default) return Results.NotFound();
             var req = JsonSerializer.Deserialize<EstimateRequest>(row.Request, Json)!;
             using var doc = JsonDocument.Parse(row.Result);
-            return Results.Ok(new EstimateResponse(id, req, doc.RootElement.Clone(), null, row.DurationMs ?? 0) { CreatedAt = row.CreatedAt });
+            var pricing = row.Adjustments is null ? null : JsonSerializer.Deserialize<PricingBreakdown>(row.Adjustments, Json);
+            return Results.Ok(new EstimateResponse(id, req, doc.RootElement.Clone(), null, row.DurationMs ?? 0) { CreatedAt = row.CreatedAt, Pricing = pricing });
         }).WithSummary("قراءة تسعير محفوظ");
 
         g.MapGet("/", async (int? limit, HttpContext http, Db db, CancellationToken ct) =>
@@ -93,11 +105,16 @@ public static class EstimateEndpoints
                 """, new { seatId = http.User.PrincipalId(), limit = Math.Clamp(limit ?? 20, 1, 100) }, ct)))
          .WithSummary("تسعيراتي: آخر تسعيرات المقعد الحالي");
     }
+
+    private static decimal? Num(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : null;
 }
 
 public sealed record EstimateResponse(Guid Id, EstimateRequest Request, JsonElement Result, decimal? GrossYieldPct, int DurationMs)
 {
     public DateTime? CreatedAt { get; init; }
+    /// <summary>Market price, adjustment lines and the single final price. Null when the engine had too few deals.</summary>
+    public PricingBreakdown? Pricing { get; init; }
 }
 
 public sealed record ValuationSummary(Guid Id, DateTime CreatedAt, string TypeGroup, decimal AreaM2, string City, string? District,

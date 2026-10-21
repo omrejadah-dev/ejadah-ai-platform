@@ -39,5 +39,6 @@ app.MapAuthEndpoints();
 app.MapMarketEndpoints();
 app.MapMapEndpoints();
 app.MapEstimateEndpoints();
+app.MapAdminPricingEndpoints();
 
 app.Run();
