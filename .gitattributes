@@ -5,3 +5,6 @@ Dockerfile text eol=lf
 *.yml text eol=lf
 *.env text eol=lf
 .env.example text eol=lf
+# data files are loaded byte-for-byte by PostgreSQL COPY: no line-ending conversion (multi-line CSV fields)
+*.csv -text
+*.jsonl -text
