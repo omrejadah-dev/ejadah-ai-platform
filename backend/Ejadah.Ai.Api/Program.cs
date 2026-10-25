@@ -2,6 +2,7 @@ using Ejadah.Ai.Api.Ai;
 using Ejadah.Ai.Api.Auth;
 using Ejadah.Ai.Api.Estimates;
 using Ejadah.Ai.Api.Infrastructure;
+using Ejadah.Ai.Api.Legal;
 using Ejadah.Ai.Api.Market;
 using Scalar.AspNetCore;
 
@@ -53,5 +54,6 @@ app.MapMarketEndpoints();
 app.MapMapEndpoints();
 app.MapEstimateEndpoints();
 app.MapAdminPricingEndpoints();
+app.MapLegalEndpoints();
 
 app.Run();

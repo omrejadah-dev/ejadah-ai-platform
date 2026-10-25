@@ -134,18 +134,22 @@ public static class AiRegistration
         var model = config["Anthropic:Model"] ?? "claude-haiku-5-5";   // Haiku decided 2026-10-25 (cost: ~0.001 SAR per notes reading)
         if (!string.IsNullOrWhiteSpace(key)) services.AddSingleton(new AnthropicClient { ApiKey = key });
 
-        // guard: N calls in flight, then a breaker after repeated failures (Ai section of the settings)
-        var ai = config.GetSection("Ai");
+        // each feature gets its own guard: N calls in flight, then a breaker after repeated failures (Ai settings)
         services.AddSingleton<INotesAssessor>(sp =>
         {
             INotesAssessor inner = string.IsNullOrWhiteSpace(key)
                 ? new MockNotesAssessor()
                 : new AnthropicNotesAssessor(sp.GetRequiredService<AnthropicClient>(), model);
-            return new ResilientNotesAssessor(inner,
-                maxConcurrent: ai.GetValue("MaxConcurrent", 8),
-                queueWait: TimeSpan.FromSeconds(ai.GetValue("QueueWaitSeconds", 5)),
-                breakAfter: ai.GetValue("BreakAfterFailures", 5),
-                breakFor: TimeSpan.FromSeconds(ai.GetValue("BreakSeconds", 60)));
+            return new ResilientNotesAssessor(inner, AiGuard.FromConfig(config));
+        });
+
+        var legalModel = config["Anthropic:LegalModel"] ?? model;
+        services.AddSingleton<ILegalAnswerer>(sp =>
+        {
+            ILegalAnswerer inner = string.IsNullOrWhiteSpace(key)
+                ? new MockLegalAnswerer()
+                : new AnthropicLegalAnswerer(sp.GetRequiredService<AnthropicClient>(), legalModel);
+            return new ResilientLegalAnswerer(inner, AiGuard.FromConfig(config));
         });
         return services;
     }

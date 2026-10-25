@@ -94,6 +94,12 @@ export type EstimateResult = {
   plot_history?: { date: string; price: number; area: number; ppm: number }[] | null;
   data_as_of: string;
 };
+/** Legal assistant (POST /api/legal/ask): the answer cites sources by their 1-based number, e.g. [2]. */
+export type LegalSource = { id: number; title: string; label: string; chapter: string; text: string; amendments: string[]; sourceUrl: string; number: number; cited: boolean };
+export type LegalAnswer = { id: string; question: string; answer: string; provider: string; sources: LegalSource[]; disclaimer: string; durationMs: number };
+export type LegalLaw = { id: number; title: string; authority: string; sourceUrl: string; articles: number; amended: number };
+export type LegalHistory = { id: string; createdAt: string; question: string; answer: string };
+
 /** Market price → age / floors / features (admin table) → AI reading of the notes → one final price. */
 export type PricingBreakdown = {
   marketPpm: number; marketTotal: number;

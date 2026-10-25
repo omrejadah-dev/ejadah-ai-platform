@@ -86,7 +86,7 @@ public static class EstimateEndpoints
                     adjustments = pricing is null ? null : JsonSerializer.Serialize(pricing, Json),
                     ai = assessment is null ? null : JsonSerializer.Serialize(assessment, Json),
                 }, ct);
-            if (aiLog is not null) await LogAiCall(db, aiLog with { SeatId = seatId, ValuationId = id }, ct);
+            if (aiLog is not null) await (aiLog with { SeatId = seatId, ValuationId = id }).SaveAsync(db, ct);
 
             // gross yield as information only (spec 6.5 step 6)
             decimal? grossYield = null;
@@ -146,18 +146,6 @@ public static class EstimateEndpoints
         }
     }
 
-    private static Task LogAiCall(Db db, AiCallLog l, CancellationToken ct) => db.ExecuteAsync(
-        """
-        insert into ops.ai_calls (feature, provider, model, seat_id, valuation_id, ok, duration_ms, input_tokens, output_tokens, error, output)
-        values (@Feature, @Provider, @Model, @SeatId, @ValuationId, @Ok, @DurationMs, @InputTokens, @OutputTokens, @Error, @Output::jsonb)
-        """, l, ct);
-}
-
-internal sealed record AiCallLog(string Feature, string Provider, string? Model, bool Ok, int DurationMs, int? InputTokens, int? OutputTokens,
-                                 string? Error, string? Output)
-{
-    public Guid? SeatId { get; init; }
-    public Guid? ValuationId { get; init; }
 }
 
 public sealed record EstimateResponse(Guid Id, EstimateRequest Request, JsonElement Result, decimal? GrossYieldPct, int DurationMs)
