@@ -131,7 +131,7 @@ public static class AiRegistration
     {
         var key = config["Anthropic:ApiKey"];
         if (string.IsNullOrWhiteSpace(key)) key = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        var model = config["Anthropic:Model"] ?? "claude-opus-5-5";
+        var model = config["Anthropic:Model"] ?? "claude-haiku-5-5";   // Haiku decided 2026-10-25 (cost: ~0.001 SAR per notes reading)
         if (!string.IsNullOrWhiteSpace(key)) services.AddSingleton(new AnthropicClient { ApiKey = key });
 
         // guard: N calls in flight, then a breaker after repeated failures (Ai section of the settings)
