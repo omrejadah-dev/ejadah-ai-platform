@@ -2,9 +2,6 @@
 property deals/
 data/consolidated/all_deals.csv
 laws.zip
-*.docx
-*.pdf
-!laws/**/*.pdf
 # build
 node_modules/
 .next/
@@ -26,3 +23,16 @@ data/geo/cities.json
 data/geo/ours.txt
 data/geo/regions.json
 data/geo/regions_full.json
+# documents stay out of git (they live on the machine and are shared separately)
+*.html
+*.htm
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+/*.txt
+Software Documentation/
+laws/
