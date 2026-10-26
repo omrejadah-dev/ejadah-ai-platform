@@ -40,9 +40,21 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       Sms__EchoCodeInResponse: ${SMS_ECHO:-false}
       Cors__Origins__0: ${PUBLIC_ORIGIN:-https://ai.ejadah.example}
+      Embedder__Url: http://embedder:8000/   # legal search by meaning; keyword search if it is down
     extra_hosts:
       - "host.docker.internal:host-gateway"   # local rehearsal reaches the dev database on the host
     expose: ["8080"]
+
+  # question vectors for the legal assistant (BGE-M3, CPU). First start downloads the model (~2.3 GB) into hf-cache.
+  embedder:
+    build: ./embedder
+    image: ejadah-embedder:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      TORCH_THREADS: "4"
+    volumes:
+      - hf-cache:/models
+    expose: ["8000"]
 
   web:
     build:
@@ -76,5 +88,6 @@ services:
 
 volumes:
   pgdata:
+  hf-cache:
   letsencrypt:
   uptime:

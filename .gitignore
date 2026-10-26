@@ -36,3 +36,6 @@ data/geo/regions_full.json
 /*.txt
 Software Documentation/
 laws/
+
+# local Python environments for tools/
+.venv/

@@ -27,16 +27,20 @@ public static class LegalEndpoints
     {
         var g = app.MapGroup("/api/legal").WithTags("Legal").RequireAuthorization(Capabilities.LegalAsk);
 
-        g.MapPost("/ask", async (AskRequest req, HttpContext http, Db db, ILegalAnswerer ai, ILoggerFactory logs, CancellationToken ct) =>
+        g.MapPost("/ask", async (AskRequest req, HttpContext http, Db db, IQuestionEmbedder embedder, ILegalAnswerer ai, ILoggerFactory logs, CancellationToken ct) =>
         {
             var question = (req.Question ?? "").Trim();
             if (question.Length is < 3 or > 500)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["question"] = ["اكتب سؤالاً بين 3 و500 حرف"] });
 
+            // search by meaning (016) when the model service answers, by keywords (015) otherwise
             var sw = Stopwatch.StartNew();
+            var vector = await embedder.EmbedAsync(question, ct);
+            var search = vector is null ? "keyword" : "meaning";
             var rows = await db.QueryAsync<Row>(
-                "select article_id, document_id, title, label, chapter, text, amendments::text as amendments, source_url, rank from legal.search(@question, 6)",
-                new { question }, ct);
+                "select article_id, document_id, title, label, chapter, text, amendments::text as amendments, source_url, rank from "
+                + (vector is null ? "legal.search(@question, 6)" : "legal.search_meaning(@question, @vector::vector, 6)"),
+                new { question, vector }, ct);
             var sources = rows.Select(r => new LegalSource(r.ArticleId, r.Title, r.Label, r.Chapter, r.Text,
                                                            JsonSerializer.Deserialize<List<string>>(r.Amendments) ?? [], r.SourceUrl)).ToList();
 
@@ -66,9 +70,9 @@ public static class LegalEndpoints
             var citedIds = answer.Cited.Select(n => sources[n - 1].Id).ToArray();
             var id = await db.ScalarAsync<Guid>(
                 """
-                insert into app.legal_questions (seat_id, question, answer, cited, provider, duration_ms)
-                values (@seatId, @question, @answer, @cited, @provider, @ms) returning id
-                """, new { seatId, question, answer = answer.Answer, cited = citedIds, provider = answer.Provider, ms = (int)sw.ElapsedMilliseconds }, ct);
+                insert into app.legal_questions (seat_id, question, answer, cited, provider, duration_ms, search)
+                values (@seatId, @question, @answer, @cited, @provider, @ms, @search) returning id
+                """, new { seatId, question, answer = answer.Answer, cited = citedIds, provider = answer.Provider, ms = (int)sw.ElapsedMilliseconds, search }, ct);
             await (log with { SeatId = seatId }).SaveAsync(db, ct);
 
             var dto = sources.Select((s, i) => new SourceDto(s.Id, s.Title, s.Label, s.Chapter, s.Text, s.Amendments, s.SourceUrl,

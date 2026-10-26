@@ -19,7 +19,7 @@ export type Seat = {
   lastSeenAt: string | null; online: boolean; ip: string | null; userAgent: string | null; estimates30d: number; legal30d: number;
 };
 export type AccountDetail = { account: Account; seats: Seat[] };
-export type LegalQuestionRow = { id: string; createdAt: string; question: string; answer: string; provider: string; cited: number; durationMs: number | null; phone: string | null; accountName: string | null };
+export type LegalQuestionRow = { id: string; createdAt: string; question: string; answer: string; provider: string; cited: number; durationMs: number | null; phone: string | null; accountName: string | null; search: "meaning" | "keyword" | null };
 export type AiCallRow = { id: number; createdAt: string; feature: string; provider: string; model: string | null; ok: boolean; durationMs: number | null; inputTokens: number | null; outputTokens: number | null; error: string | null; phone: string | null };
 export type AuditRow = { id: number; at: string; actorKind: string | null; actor: string | null; action: string; subject: string | null; data: string | null; ip: string | null };
 export type AdjustmentRule = { id: number; typeGroup: "villa" | "apartment" | "building"; factor: string; labelAr: string; kind: "per_year" | "per_floor" | "flag"; pct: number; maxAbsPct: number | null; enabled: boolean; updatedAt: string };

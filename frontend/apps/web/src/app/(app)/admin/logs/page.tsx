@@ -51,7 +51,7 @@ function LegalLog() {
       {!q.data ? <Loading /> : (
         <div className="overflow-x-auto">
           <Table>
-            <THead><Tr><Th>الوقت</Th><Th>من</Th><Th>السؤال</Th><Th>المواد</Th><Th>المصدر</Th><Th>الزمن</Th></Tr></THead>
+            <THead><Tr><Th>الوقت</Th><Th>من</Th><Th>السؤال</Th><Th>المواد</Th><Th>البحث</Th><Th>المصدر</Th><Th>الزمن</Th></Tr></THead>
             <TBody>
               {q.data.map((r) => (
                 <Tr key={r.id} className="cursor-pointer align-top" onClick={() => setOpen(open === r.id ? null : r.id)}>
@@ -62,11 +62,12 @@ function LegalLog() {
                     {open === r.id ? <div className="mt-2 whitespace-pre-wrap text-sm text-text-2">{r.answer}</div> : null}
                   </Td>
                   <Td>{r.cited ? r.cited : <Badge tone="warning">لم يجد</Badge>}</Td>
+                  <Td>{r.search === "meaning" ? "بالمعنى" : r.search === "keyword" ? "بالكلمات" : "—"}</Td>
                   <Td>{PROVIDER_LABEL[r.provider] ?? r.provider}</Td>
                   <Td dir="ltr">{r.durationMs == null ? "—" : `${fmt(r.durationMs)} ms`}</Td>
                 </Tr>
               ))}
-              {!q.data.length ? <Empty cols={6} text="لا توجد أسئلة بعد" /> : null}
+              {!q.data.length ? <Empty cols={7} text="لا توجد أسئلة بعد" /> : null}
             </TBody>
           </Table>
         </div>

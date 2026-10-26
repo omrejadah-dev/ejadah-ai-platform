@@ -34,7 +34,7 @@ public static class AdminEndpoints
     public sealed record UpdateSeat(string Phone, string? DisplayName, string Status);
 
     public sealed record LegalQuestionDto(Guid Id, DateTime CreatedAt, string Question, string Answer, string Provider, int Cited,
-                                          int? DurationMs, string? Phone, string? AccountName);
+                                          int? DurationMs, string? Phone, string? AccountName, string? Search);
     public sealed record AiCallDto(long Id, DateTime CreatedAt, string Feature, string Provider, string? Model, bool Ok, int? DurationMs,
                                    int? InputTokens, int? OutputTokens, string? Error, string? Phone);
     public sealed record AuditDto(long Id, DateTime At, string? ActorKind, string? Actor, string Action, string? Subject, string? Data, string? Ip);
@@ -236,7 +236,7 @@ public static class AdminEndpoints
         g.MapGet("/legal-questions", (int? limit, Db db, CancellationToken ct) =>
             db.QueryAsync<LegalQuestionDto>("""
                 select q.id, q.created_at, q.question, q.answer, q.provider, cardinality(q.cited) as cited, q.duration_ms,
-                       replace(s.phone, '+966', '0') as phone, a.name as account_name
+                       replace(s.phone, '+966', '0') as phone, a.name as account_name, q.search
                 from app.legal_questions q
                 left join identity.seats s on s.id = q.seat_id left join identity.accounts a on a.id = s.account_id
                 order by q.created_at desc limit @limit

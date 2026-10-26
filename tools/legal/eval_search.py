@@ -3,6 +3,8 @@ counts how often the expected article comes up first, in the top 3, and in the t
 Off-topic questions pass only when the search finds nothing. Run after any change to legal.search or the library.
 usage: python tools/legal/eval_search.py                 scores + the questions that missed
        python tools/legal/eval_search.py --all           every question with its first result
+       tools/.venv/Scripts/python tools/legal/eval_search.py --mode meaning [--min-sim 0.50]
+                                                        search by meaning (016); --mode vector skips the "nothing found" rule, questions embedded with BGE-M3
        python tools/legal/eval_search.py --xlsx FILE     also write the review sheet for the lawyer (needs openpyxl)
 The database runs in Docker (infra/docker-compose.yml); set PG_CONTAINER if the container name differs.
 """
@@ -38,13 +40,25 @@ def check_cases(cases, articles):
         sys.exit("eval_questions.csv does not match the library:\n  " + "\n  ".join(bad))
 
 
-def run_search(cases):
-    values = ",\n".join("('{}', '{}')".format(c["id"], c["question"].replace("'", "''")) for c in cases)
+def run_search(cases, mode="keyword", min_sim=None):
+    """keyword = legal.search (015); vector = nearest by meaning, no "nothing found" rule; meaning = legal.search_meaning (016)."""
+    vectors = ["NULL"] * len(cases)
+    if mode != "keyword":
+        from embed_articles import encode   # BGE-M3, needs tools/.venv
+        vectors = ["'[" + ",".join(f"{x:.6f}" for x in v) + "]'" for v in encode([c["question"] for c in cases])]
+    values = ",\n".join("('{}', '{}', {}::vector)".format(c["id"], c["question"].replace("'", "''"), v) for c, v in zip(cases, vectors))
+    cols = "article_id, document_id, title, label, chapter, text, amendments, source_url, rank"
+    call = {
+        "keyword": f"legal.search(q.question, {TOP}) WITH ORDINALITY AS s({cols}, pos)",
+        "vector": f"""(SELECT x.id AS article_id, d.title, row_number() OVER (ORDER BY x.embedding <=> q.v) AS pos
+                       FROM legal.articles x JOIN legal.documents d ON d.id = x.document_id
+                       ORDER BY x.embedding <=> q.v LIMIT {TOP}) s""",
+        "meaning": f"legal.search_meaning(q.question, q.v, {TOP}{'' if min_sim is None else f', {min_sim}'}) WITH ORDINALITY AS s({cols}, pos)",
+    }[mode]
     sql = f"""
-WITH q(id, question) AS (VALUES {values})
+WITH q(id, question, v) AS (VALUES {values})
 SELECT q.id, s.pos, s.title, a.seq
-FROM q CROSS JOIN LATERAL legal.search(q.question, {TOP})
-       WITH ORDINALITY AS s(article_id, document_id, title, label, chapter, text, amendments, source_url, rank, pos)
+FROM q CROSS JOIN LATERAL {call}
 JOIN legal.articles a ON a.id = s.article_id
 ORDER BY q.id, s.pos;"""
     out = subprocess.run(["docker", "exec", "-i", CONTAINER, "psql", "-U", "ejadah", "-d", "ejadah_ai", "--csv", "-v", "ON_ERROR_STOP=1"],
@@ -89,7 +103,7 @@ def report(cases, results, articles, show_all):
                         + (f"\n         first: {label(*found[0])}" if found else ""))
 
     n = len(in_scope)
-    print(f"Legal search: {n} questions with a known answer, {len(off_topic)} off-topic\n")
+    print(f"Legal search ({MODE}): {n} questions with a known answer, {len(off_topic)} off-topic\n")
     print(f"  right article first        {hits[1]:3} / {n}  ({hits[1] / n:.0%})")
     print(f"  right article in top 3     {hits[3]:3} / {n}  ({hits[3] / n:.0%})")
     print(f"  right article in top {TOP}     {hits[TOP]:3} / {n}  ({hits[TOP] / n:.0%})   <- what Haiku gets to read")
@@ -133,9 +147,16 @@ def write_review_sheet(cases, articles, path):
     print(f"\nReview sheet: {path}")
 
 
+def arg(name, default=None):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+
+
+MODE = arg("--mode", "keyword")
+
 if __name__ == "__main__":
     cases, articles = load_cases(), load_articles()
     check_cases(cases, articles)
-    report(cases, run_search(cases), articles, "--all" in sys.argv)
+    min_sim = arg("--min-sim")
+    report(cases, run_search(cases, MODE, float(min_sim) if min_sim else None), articles, "--all" in sys.argv)
     if "--xlsx" in sys.argv:
         write_review_sheet(cases, articles, sys.argv[sys.argv.index("--xlsx") + 1])
