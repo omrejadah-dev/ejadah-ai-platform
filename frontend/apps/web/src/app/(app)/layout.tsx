@@ -13,11 +13,12 @@ import { useEffect } from "react";
 const NAV: { href: string; label: string; icon: string; cap?: string }[] = [
   { href: "/", label: "الرئيسية", icon: "ti-home" },
   ...(FEATURES.estimate ? [
-    { href: "/estimate/new", label: "تسعير عقار", icon: "ti-calculator" },
-    { href: "/my-estimates", label: "تسعيراتي", icon: "ti-history" },
+    { href: "/estimate/new", label: "تسعير عقار", icon: "ti-calculator", cap: "price.estimate" },
+    { href: "/my-estimates", label: "تسعيراتي", icon: "ti-history", cap: "price.estimate" },
   ] : []),
   { href: "/market", label: "السوق", icon: "ti-chart-line", cap: "market.history" },
-  { href: "/legal", label: "اسأل إجادة القانونية", icon: "ti-scale" },
+  { href: "/legal", label: "اسأل إجادة القانونية", icon: "ti-scale", cap: "legal.ask" },
+  { href: "/admin", label: "لوحة المدير", icon: "ti-settings", cap: "admin.*" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

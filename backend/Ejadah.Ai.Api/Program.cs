@@ -1,3 +1,4 @@
+using Ejadah.Ai.Api.Admin;
 using Ejadah.Ai.Api.Ai;
 using Ejadah.Ai.Api.Auth;
 using Ejadah.Ai.Api.Estimates;
@@ -54,6 +55,7 @@ app.MapMarketEndpoints();
 app.MapMapEndpoints();
 app.MapEstimateEndpoints();
 app.MapAdminPricingEndpoints();
+app.MapAdminEndpoints();
 app.MapLegalEndpoints();
 
 app.Run();
