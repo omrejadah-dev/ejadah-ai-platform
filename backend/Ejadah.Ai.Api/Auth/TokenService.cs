@@ -64,6 +64,10 @@ public sealed class TokenService(JwtOptions opt)
 public static class ClaimsExtensions
 {
     public static Guid PrincipalId(this ClaimsPrincipal u) => Guid.Parse(u.FindFirstValue("sub")!);
+    public static string Kind(this ClaimsPrincipal u) => u.FindFirstValue("kind") ?? PrincipalKinds.Seat;
+    /// <summary>The seat id, or null for an admin: seat_id columns reference identity.seats, admins go in admin_id.</summary>
+    public static Guid? SeatId(this ClaimsPrincipal u) => u.Kind() == PrincipalKinds.Seat ? u.PrincipalId() : null;
+    public static Guid? AdminId(this ClaimsPrincipal u) => u.Kind() == PrincipalKinds.Admin ? u.PrincipalId() : null;
     public static Guid SessionId(this ClaimsPrincipal u) => Guid.Parse(u.FindFirstValue("sid")!);
     public static Guid? AccountId(this ClaimsPrincipal u) => Guid.TryParse(u.FindFirstValue("acc"), out var g) ? g : null;
     public static string Role(this ClaimsPrincipal u) => u.FindFirstValue("role") ?? "";

@@ -25,6 +25,8 @@ builder.Services.AddEjadahAuth(builder.Configuration, builder.Environment);
 builder.Services.AddEjadahAi(builder.Configuration);   // Claude once an Anthropic key is set, the trial reader until then
 builder.Services.AddEjadahQuestionEmbedder(builder.Configuration);   // legal search by meaning when Embedder:Url is set
 builder.Services.AddEjadahRateLimits(builder.Configuration);
+builder.Services.AddSingleton<PricingService>();
+builder.Services.AddSingleton<MarketCache>();   // map responses keyed by the data date, so a reload shows at once
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:3000"])
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));

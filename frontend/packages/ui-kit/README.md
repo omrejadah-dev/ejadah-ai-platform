@@ -93,9 +93,9 @@ Decide the context from the deliverable, never mix families in one artifact. Col
 
 See each component's own JSDoc for its role and props. Grouped by concern:
 
-- **Core:** `Button`, `Badge`, `StatusBadge`, `StatusPill`, `Card`/`CardHeader`/`CardBody`, `Note`, `Spinner`, `Skeleton`
-- **Forms:** `Input`, `Select`, `Textarea`, `Label`, `FormGroup`, `FormRow`, `InfathTextField`/`InfathSelectField`/`InfathTextAreaField`/`InfathSection`
-- **Data:** `Table` (+ `TableFrame`/`THead`/`TBody`/`Tr`/`Th`/`Td`/`TdLtr`/`ThAction`/`TdAction`/`TableEmptyRow`), `StatCard`/`StatGrid`/`StatLabel`/`StatValue`, `KpiBand`/`KpiCell`, `ProgressBar`, `ListPager`
-- **Navigation:** `TabBar`/`Tab`/`TabPanel`, `OperationalToolbarSearch`/`OperationalToolbarSelect`/`OperationalToolbarPrimaryButton`
+- **Core:** `Button` (+ `buttonLinkClassName` for a link that looks like one), `Badge`, `StatusBadge`, `StatusPill`, `Card`/`CardHeader`/`CardBody`, `Note`, `Spinner`, `Skeleton`
+- **Forms:** `Input`, `Select`, `Textarea`, `Label`, `FormGroup`, `FormRow`
+- **Data:** `Table` (+ `TableFrame`/`THead`/`TBody`/`Tr`/`Th`/`Td`/`TdLtr`/`ThAction`/`TdAction`/`TableEmptyRow`), `StatCard`/`StatGrid`/`StatLabel`/`StatValue`, `ProgressBar`, `ListPager`
+- **Navigation:** `TabBar`/`Tab`/`TabPanel`, `FilterChips`/`FilterTag`
 - **Feedback:** `AppModal` (+ the underlying `Modal*` pieces), `ToastProvider`/`useToast`, `EmptyState`
 - **Layout:** `PageShell`/`PageGutter`/`PageShellHeader`/`PageToolbar`/`OperationalPanel`/`QueueTableHint`/`ReportPageBody`, `SubpagePanel`/`SubpageHeader`

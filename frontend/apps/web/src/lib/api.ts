@@ -1,6 +1,7 @@
 /**
  * API client. Same-origin (/api/* is proxied by Next to ASP.NET), cookies carry the session.
- * On 401 it tries one silent refresh, then redirects to /login with the reason.
+ * On 401 it tries one silent refresh (the 15-minute access cookie is renewed from the 30-day refresh cookie),
+ * then redirects to /login with the reason.
  */
 export class ApiError extends Error {
   constructor(
@@ -15,6 +16,10 @@ export class ApiError extends Error {
 
 type Problem = { title?: string; type?: string; status?: number; errors?: Record<string, string[]> };
 
+/** The sign-in calls themselves: a 401 from them is the answer (wrong code, no refresh cookie), not an expired session. */
+const NO_REFRESH = ["/api/auth/refresh", "/api/auth/otp", "/api/auth/verify"];
+const refreshes = (path: string) => !NO_REFRESH.some((p) => path === p || path.startsWith(p + "?"));
+
 let refreshing: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -25,8 +30,16 @@ async function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T>(path: string, init: RequestInit & { json?: unknown; retry?: boolean } = {}): Promise<T> {
-  const { json, retry = true, ...rest } = init;
+export type ApiInit = RequestInit & {
+  json?: unknown;
+  /** Try one silent refresh on a 401 (default true). */
+  retry?: boolean;
+  /** When the session cannot be refreshed, go to /login (default true). The login page itself passes false. */
+  redirectOn401?: boolean;
+};
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+  const { json, retry = true, redirectOn401 = true, ...rest } = init;
   const res = await fetch(path, {
     credentials: "include",
     ...rest,
@@ -34,11 +47,15 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
 
-  if (res.status === 401 && retry && !path.startsWith("/api/auth/")) {
+  if (res.status === 401 && retry && refreshes(path)) {
     if (await tryRefresh()) return api<T>(path, { ...init, retry: false });
-    if (typeof window !== "undefined") {
+    if (redirectOn401 && typeof window !== "undefined") {
       const reason = await res.json().then((p: Problem) => p.type).catch(() => undefined);
+      // a full page load on purpose: nothing of the old session (cached queries, state) survives into the sign-in
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = `/login?reason=${encodeURIComponent(reason ?? "expired")}&from=${encodeURIComponent(window.location.pathname)}`;
+      // the page is going away: settle never, so no caller flashes an error in the meantime
+      return new Promise<T>(() => {});
     }
   }
 
@@ -64,9 +81,14 @@ export type Me = {
   accountName: string | null;
   expiresAt: string | null;
 };
-export type City = { id: number; name: string; region: string };
+/** Same rule as the server (TokenService.Has): the system admin may do everything. */
+export const can = (me: Pick<Me, "capabilities">, cap: string) => me.capabilities.includes(cap) || me.capabilities.includes("admin.*");
+
+export type City = { id: number; name: string; region: string; deals: number };
 export type District = { id: number; name: string; nMarketDeals: number };
 export type PropertyType = "land" | "villa" | "apartment" | "building";
+/** The map also shows the four types together. */
+export type MapType = PropertyType | "all";
 
 export type EstimateRequest = {
   propertyType: PropertyType;
@@ -108,9 +130,15 @@ export type PricingBreakdown = {
   finalPpm: number; finalTotal: number;
 };
 export type EstimateResponse = { id: string; request: EstimateRequest; result: EstimateResult; grossYieldPct: number | null; durationMs: number; createdAt?: string; pricing?: PricingBreakdown | null };
-export type ValuationSummary = { id: string; createdAt: string; typeGroup: PropertyType; areaM2: number; city: string; district: string | null; confidence: string; ppmEstimate: number | null; totalEstimate: number | null };
+export type ValuationSummary = { id: string; createdAt: string; typeGroup: PropertyType; areaM2: number; city: string; district: string | null; confidence: EstimateResult["confidence"]; ppmEstimate: number | null; totalEstimate: number | null };
 
 export const TYPE_LABEL: Record<PropertyType, string> = { land: "أرض", villa: "فيلا", apartment: "شقة", building: "عمارة" };
+export const isPropertyType = (v: string | null | undefined): v is PropertyType => v != null && Object.hasOwn(TYPE_LABEL, v);
+export const MAP_TYPE_LABEL: Record<MapType, string> = { all: "الكل", ...TYPE_LABEL };
 export const CONFIDENCE_LABEL: Record<EstimateResult["confidence"], string> = { high: "ثقة عالية", medium: "ثقة متوسطة", low: "ثقة منخفضة", insufficient: "بيانات غير كافية" };
-export const fmt = (n: number | null | undefined, digits = 0) =>
-  n == null ? "—" : new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(n);
+
+/** GET /api/districts/{id}/history answers in camelCase; the trend chart reads the estimate's snake_case points. Mapped here only. */
+type HistoryRow = { year: number; ppmMedian: number; nDeals: number };
+export const districtHistory = (districtId: number, type: PropertyType) =>
+  api<HistoryRow[]>(`/api/districts/${districtId}/history?type=${type}`)
+    .then((rows): TrendPoint[] => rows.map((r) => ({ year: r.year, ppm_median: r.ppmMedian, n_deals: r.nDeals })));

@@ -20,21 +20,11 @@ export type Seat = {
 };
 export type AccountDetail = { account: Account; seats: Seat[] };
 export type LegalQuestionRow = { id: string; createdAt: string; question: string; answer: string; provider: string; cited: number; durationMs: number | null; phone: string | null; accountName: string | null; search: "meaning" | "keyword" | null };
-export type AiCallRow = { id: number; createdAt: string; feature: string; provider: string; model: string | null; ok: boolean; durationMs: number | null; inputTokens: number | null; outputTokens: number | null; error: string | null; phone: string | null };
-export type AuditRow = { id: number; at: string; actorKind: string | null; actor: string | null; action: string; subject: string | null; data: string | null; ip: string | null };
 export type AdjustmentRule = { id: number; typeGroup: "villa" | "apartment" | "building"; factor: string; labelAr: string; kind: "per_year" | "per_floor" | "flag"; pct: number; maxAbsPct: number | null; enabled: boolean; updatedAt: string };
 export type PricingSetting = { key: string; value: number; labelAr: string; updatedAt: string };
 
 export const STATUS_LABEL: Record<AccountStatus, string> = { active: "فعّال", suspended: "موقوف", expired: "منتهي" };
 export const statusTone = (s: AccountStatus) => (s === "active" ? "success" : s === "suspended" ? "danger" : "warning") as "success" | "danger" | "warning";
-
-/** +9665XXXXXXXX → 05XXXXXXXX, the way people read and type it. */
-export const localPhone = (p: string | null) => (p ? p.replace(/^\+966/, "0") : "—");
-
-export const dateTime = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString("ar-SA-u-nu-latn-ca-gregory", { dateStyle: "medium", timeStyle: "short" }) : "—";
-export const dateOnly = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("ar-SA-u-nu-latn-ca-gregory", { dateStyle: "medium" }) : "—";
 
 /** Whole days from today to a yyyy-mm-dd date (negative once it has passed). */
 export const daysUntil = (ymd: string) => Math.round((new Date(ymd + "T00:00:00").getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000);
@@ -49,6 +39,8 @@ export const addDays = (ymd: string, days: number) => {
 export function deviceLabel(ua: string | null) {
   if (!ua) return "—";
   const os = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "";
-  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : /curl/.test(ua) ? "curl" : "متصفح";
+  // on iPhone every browser runs on Safari's engine and names itself CriOS / EdgiOS / FxiOS, so check those before "Safari"
+  const browser = /Edg\/|EdgiOS\//.test(ua) ? "Edge" : /Chrome\/|CriOS\//.test(ua) ? "Chrome" : /Firefox\/|FxiOS\//.test(ua) ? "Firefox"
+    : /Safari\//.test(ua) ? "Safari" : /curl/.test(ua) ? "curl" : "متصفح";
   return os ? `${browser} · ${os}` : browser;
 }

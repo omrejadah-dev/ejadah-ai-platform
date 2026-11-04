@@ -18,6 +18,7 @@ frontend/apps/web/next-env.d.ts
 frontend/apps/web/AGENTS.md
 frontend/apps/web/CLAUDE.md
 frontend/apps/web/.next-test/
+*.tsbuildinfo
 data/geo/districts.json
 data/geo/cities.json
 data/geo/ours.txt

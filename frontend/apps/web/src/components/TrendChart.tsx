@@ -1,6 +1,7 @@
 "use client";
 
-import { fmt, type TrendPoint } from "@/lib/api";
+import type { TrendPoint } from "@/lib/api";
+import { fmt } from "@/lib/format";
 
 /** Small dependency-free SVG line chart: yearly median price per m² with deal counts as bars. RTL-safe (years run right→left). */
 export function TrendChart({ district, city, height = 180, highlightYear }: { district?: TrendPoint[]; city?: TrendPoint[]; height?: number; highlightYear?: number }) {

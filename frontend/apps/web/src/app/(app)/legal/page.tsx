@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Card, CardBody, CardHeader, cn, Note, Spinner, Textarea } from "@platform/ui-kit";
-import { api, fmt, type LegalAnswer, type LegalHistory, type LegalLaw, type LegalSource } from "@/lib/api";
+import { api, type LegalAnswer, type LegalHistory, type LegalLaw, type LegalSource } from "@/lib/api";
+import { fmt } from "@/lib/format";
+import { CenteredSpinner, EmptyLine, QueryView } from "@/components/QueryView";
 
 const SUGGESTIONS = [
   "كم عمولة الوسيط العقاري؟",
@@ -47,7 +49,6 @@ export default function LegalPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold text-heading">اسأل إجادة القانونية</h1>
         <p className="text-sm text-text-2">
           اسأل عن الأنظمة العقارية السعودية، والإجابة من نصوص الأنظمة الرسمية مع ذكر النظام ورقم المادة
           {laws.data ? <> · المكتبة: {fmt(laws.data.length)} نظاماً و{fmt(totalArticles)} مادة</> : null}
@@ -96,13 +97,15 @@ export default function LegalPage() {
           <Card>
             <CardHeader><span className="font-bold text-heading">المكتبة</span><span className="text-xs text-text-3">المصدر الرسمي</span></CardHeader>
             <CardBody className="max-h-[340px] space-y-1 overflow-y-auto p-2">
-              {laws.data?.map((l) => (
-                <a key={l.id} href={l.sourceUrl} target="_blank" rel="noreferrer"
-                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-row-hover">
-                  <span className="text-text-2">{l.title}</span>
-                  <span className="shrink-0 text-[11px] text-text-3">{fmt(l.articles)} مادة</span>
-                </a>
-              )) ?? <div className="grid place-items-center py-6"><Spinner /></div>}
+              <QueryView q={laws} errorLine="تعذّر تحميل المكتبة" loading={<CenteredSpinner className="py-6" />} empty={<EmptyLine className="py-6">لا توجد أنظمة بعد</EmptyLine>}>
+                {(list) => list.map((l) => (
+                  <a key={l.id} href={l.sourceUrl} target="_blank" rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-row-hover">
+                    <span className="text-text-2">{l.title}</span>
+                    <span className="shrink-0 text-[11px] text-text-3">{fmt(l.articles)} مادة</span>
+                  </a>
+                ))}
+              </QueryView>
             </CardBody>
           </Card>
           {history.data?.length ? (
@@ -191,12 +194,12 @@ function SourceCard({ s }: { s: LegalSource }) {
       {s.chapter ? <div className="mt-0.5 text-[11px] text-text-3">{s.chapter}</div> : null}
       <p className={cn("mt-2 whitespace-pre-line text-sm leading-7 text-text-2", !open && long && "line-clamp-4")}>{s.text}</p>
       {s.amendments.length ? (
-        <div className="mt-2 space-y-1 rounded-lg bg-[#fff6e5] p-2 text-xs leading-6 text-[#7a5a12]">
+        <div className="mt-2 space-y-1 rounded-lg bg-warning-bg p-2 text-xs leading-6 text-amber-text">
           {s.amendments.map((am, i) => <p key={i} className={cn(!open && "line-clamp-3")}>{am}</p>)}
         </div>
       ) : null}
       {long || s.amendments.length ? (
-        <button onClick={() => setOpen((x) => !x)} className="mt-1 text-xs font-bold text-gold-d hover:underline">{open ? "عرض أقل" : "النص كاملاً"}</button>
+        <button type="button" aria-expanded={open} onClick={() => setOpen((x) => !x)} className="mt-1 text-xs font-bold text-gold-d hover:underline">{open ? "عرض أقل" : "النص كاملاً"}</button>
       ) : null}
     </div>
   );

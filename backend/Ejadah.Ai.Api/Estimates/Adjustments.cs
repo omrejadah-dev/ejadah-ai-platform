@@ -8,6 +8,13 @@ public sealed record AdjustmentRule(int Id, string TypeGroup, string Factor, str
 
 public sealed record PricingSetting(string Key, decimal Value, string LabelAr, DateTime UpdatedAt);
 
+/// <summary>The two caps (percent): total of the rule lines, and the AI reading of the notes. Admin-set in app.pricing_settings.</summary>
+public sealed record PricingCaps(decimal RulesMaxTotalPct, decimal AiMaxPct)
+{
+    public const string RulesKey = "rules_max_total_pct", AiKey = "ai_max_pct";
+    public static readonly PricingCaps Default = new(30, 15);
+}
+
 /// <summary>One line of the explanation under the price, e.g. "عمر العقار −6%".</summary>
 public sealed record AdjustmentItem(string Factor, string Label, decimal Pct);
 
@@ -30,8 +37,15 @@ public static class Adjustments
     public static Task<IReadOnlyList<AdjustmentRule>> RulesAsync(Db db, string typeGroup, CancellationToken ct) =>
         db.QueryAsync<AdjustmentRule>("select " + Cols + " from app.adjustment_rules where type_group = @typeGroup and enabled order by id", new { typeGroup }, ct);
 
-    public static async Task<decimal> SettingAsync(Db db, string key, decimal fallback, CancellationToken ct) =>
-        await db.ScalarAsync<decimal?>("select value from app.pricing_settings where key = @key", new { key }, ct) ?? fallback;
+    /// <summary>Both caps from app.pricing_settings in one query; a missing row falls back to the default here.</summary>
+    public static async Task<PricingCaps> CapsAsync(Db db, CancellationToken ct)
+    {
+        var rows = (await db.QueryAsync<(string Key, decimal Value)>(
+            "select key, value from app.pricing_settings where key in (@rules, @ai)", new { rules = PricingCaps.RulesKey, ai = PricingCaps.AiKey }, ct))
+            .ToDictionary(r => r.Key, r => r.Value);
+        return new PricingCaps(rows.GetValueOrDefault(PricingCaps.RulesKey, PricingCaps.Default.RulesMaxTotalPct),
+                               rows.GetValueOrDefault(PricingCaps.AiKey, PricingCaps.Default.AiMaxPct));
+    }
 
     /// <summary>The rule lines that apply to this property. Rules at 0% are left out so the explanation stays short.</summary>
     public static List<AdjustmentItem> Evaluate(EstimateRequest req, IEnumerable<AdjustmentRule> rules)

@@ -37,6 +37,33 @@ const iconSizeClasses = {
 export type ButtonVariant = keyof typeof variantClasses;
 export type ButtonSize = keyof typeof sizeClasses;
 
+/**
+ * The same look for a link (`<a>` / Next `Link`) that navigates — a button inside a link is invalid HTML and
+ * reads twice to screen readers. Written out in full (no `enabled:`), because links have no disabled state.
+ */
+const linkVariantClasses = {
+  default: "border border-border-md bg-surface text-text-2 hover:bg-row-hover",
+  primary: "border-none bg-ink text-white hover:bg-navy-3",
+  outline: "border border-primary bg-transparent text-primary hover:bg-gold-soft",
+  ghost: "border border-transparent bg-transparent text-text-2 hover:bg-row-hover",
+} as const;
+
+export type ButtonLinkVariant = keyof typeof linkVariantClasses;
+
+/** Classes that make a link look like `Button`: `<Link href="/x" className={buttonLinkClassName({ variant: "primary" })}>`. */
+export function buttonLinkClassName({
+  variant = "default",
+  size = "default",
+  className,
+}: { variant?: ButtonLinkVariant; size?: ButtonSize; className?: string } = {}) {
+  return cn(
+    "inline-flex items-center justify-center rounded-[9px] font-[inherit] font-medium whitespace-nowrap no-underline transition-colors duration-[130ms] cursor-pointer active:brightness-95",
+    linkVariantClasses[variant],
+    sizeClasses[size],
+    className,
+  );
+}
+
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;

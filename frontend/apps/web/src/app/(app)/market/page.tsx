@@ -1,47 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardBody, CardHeader, FormGroup, Input, Select } from "@platform/ui-kit";
+import { Card, CardBody, CardHeader, FormGroup, Select } from "@platform/ui-kit";
 import { TrendChart } from "@/components/TrendChart";
-import { api, TYPE_LABEL, type City, type District, type PropertyType, type TrendPoint } from "@/lib/api";
-
-type Row = { year: number; ppmMedian: number; nDeals: number };
+import { busiestCityId, CityPicker, groupCities } from "@/components/CityPicker";
+import { DistrictAutocomplete } from "@/components/DistrictAutocomplete";
+import { QueryView } from "@/components/QueryView";
+import { api, districtHistory, TYPE_LABEL, type City, type District, type PropertyType } from "@/lib/api";
 
 export default function MarketPage() {
-  const [pickedCity, setCityId] = useState<number | "">("");
+  const [pickedCity, setCityId] = useState<number | null>(null);
   const [type, setType] = useState<PropertyType>("land");
-  const [q, setQ] = useState("");
   const [district, setDistrict] = useState<District | null>(null);
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/api/cities") });
-  const cityId: number | "" = pickedCity !== "" ? pickedCity : (cities.data?.[0]?.id ?? "");
-  const districts = useQuery({ queryKey: ["districts", cityId, q], queryFn: () => api<District[]>(`/api/cities/${cityId}/districts?q=${encodeURIComponent(q)}&limit=10`), enabled: cityId !== "" && q.length > 0 });
-  const hist = useQuery({ queryKey: ["history", district?.id, type], queryFn: () => api<Row[]>(`/api/districts/${district!.id}/history?type=${type}`), enabled: !!district });
-  const trend: TrendPoint[] | undefined = hist.data?.map((r) => ({ year: r.year, ppm_median: r.ppmMedian, n_deals: r.nDeals }));
+  const regions = useMemo(() => groupCities(cities.data), [cities.data]);
+  const cityId = pickedCity ?? busiestCityId(regions);
+  const hist = useQuery({ queryKey: ["history", district?.id, type], queryFn: () => districtHistory(district!.id, type), enabled: !!district });
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <h1 className="text-2xl font-extrabold text-heading">السوق</h1>
       <Card>
-        <CardBody className="grid gap-4 sm:grid-cols-3">
-          <FormGroup label="المدينة"><Select value={cityId} onChange={(e) => { setCityId(Number(e.target.value)); setDistrict(null); setQ(""); }}>{cities.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormGroup>
-          <FormGroup label="النوع"><Select value={type} onChange={(e) => setType(e.target.value as PropertyType)}>{(Object.keys(TYPE_LABEL) as PropertyType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</Select></FormGroup>
-          <FormGroup label="الحي">
-            <div className="relative">
-              <Input value={district ? district.name : q} onChange={(e) => { setDistrict(null); setQ(e.target.value); }} placeholder="ابحث عن حي" />
-              {!district && q && districts.data?.length ? (
-                <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-border bg-surface shadow-lg">
-                  {districts.data.map((d) => <li key={d.id}><button type="button" className="w-full px-3 py-2 text-start text-sm hover:bg-row-hover" onClick={() => setDistrict(d)}>{d.name}</button></li>)}
-                </ul>
-              ) : null}
-            </div>
-          </FormGroup>
-        </CardBody>
+        <QueryView q={cities} errorLine="تعذّر تحميل المدن">
+          {() => (
+            <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CityPicker regions={regions} cityId={cityId} idPrefix="market" onChange={(id) => { setCityId(id); setDistrict(null); }} />
+              <FormGroup label="النوع" htmlFor="market-type">
+                <Select id="market-type" value={type} onChange={(e) => setType(e.target.value as PropertyType)}>
+                  {(Object.keys(TYPE_LABEL) as PropertyType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+                </Select>
+              </FormGroup>
+              <FormGroup label="الحي" htmlFor="market-district">
+                <DistrictAutocomplete key={cityId ?? "none"} id="market-district" cityId={cityId} value={district} onChange={setDistrict} />
+              </FormGroup>
+            </CardBody>
+          )}
+        </QueryView>
       </Card>
       {district ? (
         <Card>
           <CardHeader><span className="font-bold text-heading">{district.name} · {TYPE_LABEL[type]} · وسيط سعر المتر سنوياً</span></CardHeader>
-          <CardBody><TrendChart district={trend} height={240} /></CardBody>
+          <CardBody>
+            <QueryView q={hist} errorLine="تعذّر تحميل تاريخ الأسعار">
+              {(trend) => <TrendChart district={trend} height={240} />}
+            </QueryView>
+          </CardBody>
         </Card>
       ) : <p className="text-sm text-text-3">اختر حياً لعرض تاريخ أسعاره عبر السنوات.</p>}
     </div>

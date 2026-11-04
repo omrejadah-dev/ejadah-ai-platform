@@ -1,5 +1,6 @@
 -- 015_legal.sql — the legal assistant's library: one row per law, one row per article (PLAN.md phase E).
--- Source: tools/legal/fetch_boe.py + fetch_rega.py → build_csv.py → data/legal/legal_articles.csv
+-- Source: tools/legal/fetch_boe.py + fetch_rega.py → build_csv.py → data/legal/legal_articles.csv, loaded by db/reload/04_legal.sql
+-- (an upsert on (doc_key, seq): article ids, which app.legal_questions.cited stores, and their embeddings are kept).
 -- Search: PostgreSQL's Arabic stemmer on lightly normalised text, weighted law title > article label > chapter > text.
 CREATE SCHEMA IF NOT EXISTS legal;
 
@@ -8,16 +9,14 @@ CREATE OR REPLACE FUNCTION legal.norm(t text) RETURNS text LANGUAGE sql IMMUTABL
   SELECT translate(regexp_replace(coalesce(t, ''), '[ً-ْـ]', '', 'g'), 'أإآٱ', 'اااا')
 $$;
 
-DROP TABLE IF EXISTS legal.articles;
-DROP TABLE IF EXISTS legal.documents;
-CREATE TABLE legal.documents (
+CREATE TABLE IF NOT EXISTS legal.documents (
   id          serial PRIMARY KEY,
   doc_key     text NOT NULL UNIQUE,
   title       text NOT NULL,
   authority   text NOT NULL,
   source_url  text NOT NULL
 );
-CREATE TABLE legal.articles (
+CREATE TABLE IF NOT EXISTS legal.articles (
   id          serial PRIMARY KEY,
   document_id int  NOT NULL REFERENCES legal.documents(id),
   seq         int  NOT NULL,                -- order in the law
@@ -29,33 +28,14 @@ CREATE TABLE legal.articles (
   UNIQUE (document_id, seq)
 );
 
-CREATE TEMP TABLE stage (doc_key text, title text, authority text, source_url text, seq int, chapter text, label text, text text, amendments text);
-COPY stage FROM '/data/legal/legal_articles.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8');
+CREATE INDEX IF NOT EXISTS ix_legal_articles_search ON legal.articles USING gin (search);
 
-INSERT INTO legal.documents (doc_key, title, authority, source_url)
-SELECT DISTINCT ON (doc_key) doc_key, title, authority, source_url FROM stage ORDER BY doc_key;
-
-INSERT INTO legal.articles (document_id, seq, chapter, label, text, amendments)
-SELECT d.id, s.seq, coalesce(s.chapter, ''), s.label, s.text, s.amendments::jsonb
-FROM stage s JOIN legal.documents d USING (doc_key);
-
-UPDATE legal.articles a SET search =
-     setweight(to_tsvector('arabic', legal.norm(d.title)), 'A')
-  || setweight(to_tsvector('arabic', legal.norm(a.label)), 'B')
-  || setweight(to_tsvector('arabic', legal.norm(a.chapter)), 'C')
-  || setweight(to_tsvector('arabic', legal.norm(a.text || ' ' || coalesce((SELECT string_agg(x, ' ') FROM jsonb_array_elements_text(a.amendments) x), ''))), 'D')
-FROM legal.documents d WHERE d.id = a.document_id;
-CREATE INDEX ix_legal_articles_search ON legal.articles USING gin (search);
 
 -- words that appear in more than 12% of articles ("في", "من", "نظام", "مادة"…) carry no signal: the Arabic stemmer
--- has no stop-word list, so they are measured and dropped from questions instead
-DROP TABLE IF EXISTS legal.common_terms;
-CREATE TABLE legal.common_terms AS
-SELECT word FROM ts_stat('select search from legal.articles')
-WHERE ndoc > 0.12 * (SELECT count(*) FROM legal.articles);
+-- has no stop-word list, so they are measured and dropped from questions instead (filled by db/reload/04_legal.sql)
+CREATE TABLE IF NOT EXISTS legal.common_terms (word text);
 
 -- Arabic function words the stemmer keeps (it has no stop-word list): question words, pronouns, prepositions
-DROP TABLE IF EXISTS legal.stop_words;
 CREATE TABLE legal.stop_words AS
 SELECT DISTINCT t AS word FROM unnest(tsvector_to_array(to_tsvector('arabic', legal.norm(
   'ما ماذا هل كيف متى كم اين لماذا من هو هي هم هن انا انت نحن هذا هذه ذلك تلك الذي التي الذين لي لك له لها عن الى على في مع او ثم لكن اذا ان لو قد كل بعض غير يجوز يمكن ابغى ابي اريد ودي ايش وش عندي سؤال'
@@ -100,4 +80,3 @@ CREATE TABLE IF NOT EXISTS app.legal_questions (
 );
 CREATE INDEX IF NOT EXISTS ix_legal_questions_seat ON app.legal_questions (seat_id, created_at DESC);
 
-SELECT (SELECT count(*) FROM legal.documents) AS laws, (SELECT count(*) FROM legal.articles) AS articles;

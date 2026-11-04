@@ -123,9 +123,9 @@ export type PageToolbarProps = HTMLAttributes<HTMLDivElement>;
 
 /**
  * Toolbar row under the page header — row one of a stacked FilterBar:
- * `OperationalToolbarSearch` | spacer | a "تصفية" `Button` (pair it with a
+ * a search `Input` | spacer | a "تصفية" `Button` (pair it with a
  * live-count `Badge`/`StatusBadge` for the active-filter count, opens a
- * `SideSheet`) | `OperationalToolbarPrimaryButton`. Put `FilterChips` (row
+ * `SideSheet`) | the primary `Button`. Put `FilterChips` (row
  * two) directly below this as a sibling, not nested inside it.
  */
 export function PageToolbar({

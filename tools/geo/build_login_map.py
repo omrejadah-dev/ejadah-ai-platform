@@ -1,10 +1,10 @@
 """Render the whole Kingdom as a static SVG for the login page: the 13 region borders, and every mapped district in gold
 whose intensity follows its land price/m² (last 24 months, ranked across the Kingdom), so the cities glow.
 
-usage: python tools/geo/build_login_map.py   (reads from the local Postgres container, writes frontend/apps/web/public/brand/kingdom-map.svg)
+usage: python tools/geo/build_login_map.py   (reads from the local Postgres container, name from PG_CONTAINER, writes frontend/apps/web/public/brand/kingdom-map.svg)
 The file is decorative and public: it carries shapes and a colour only, no numbers.
 """
-import json, math, subprocess
+import json, math, os, subprocess
 from pathlib import Path
 
 from shapely.geometry import shape, mapping
@@ -29,7 +29,7 @@ left join (select region, sum(ppm_median * n_deals) / nullif(sum(n_deals), 0) p 
 
 def query(sql):
     return json.loads(subprocess.run(
-        ["docker", "exec", "-i", "ejadah-ai-postgres", "psql", "-U", "ejadah", "-d", "ejadah_ai", "-tA", "-c", sql],
+        ["docker", "exec", "-i", os.environ.get("PG_CONTAINER", "ejadah-ai-postgres"), "psql", "-U", "ejadah", "-d", "ejadah_ai", "-tA", "-c", sql],
         capture_output=True, text=True, encoding="utf-8", check=True).stdout)
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ToastProvider } from "@platform/ui-kit";
+import { ActionDialogHost, ToastProvider } from "@platform/ui-kit";
 import { useState } from "react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -16,7 +16,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
   return (
     <QueryClientProvider client={client}>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        {children}
+        {/* confirmAction / promptAction / alertAction show their dialog here */}
+        <ActionDialogHost />
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

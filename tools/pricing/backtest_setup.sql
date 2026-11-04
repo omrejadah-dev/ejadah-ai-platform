@@ -10,7 +10,8 @@ FROM (
   SELECT d.*, row_number() OVER (PARTITION BY d.city_id, d.type_group ORDER BY md5(d.deal_id)) AS rn,
          abs(hashtext(d.deal_id)) % 4 AS chunk
   FROM market.deals d JOIN market.districts ds ON ds.id = d.district_id AND NOT ds.is_unknown
-  WHERE d.is_market_deal AND d.city_id IN (44, 223, 81)
+  WHERE d.is_market_deal
+    AND d.city_id IN (SELECT id FROM market.cities WHERE (region, name_norm) IN (('الرياض', 'الرياض'), ('مكة المكرمة', 'جده'), ('الشرقية', 'الدمام')))
     AND d.deal_date >= (SELECT data_as_of FROM market.v_meta) - interval '6 months'
 ) x WHERE rn <= 150;
 CREATE TABLE eval.bt_result (deal_id text PRIMARY KEY, est jsonb, baseline numeric);

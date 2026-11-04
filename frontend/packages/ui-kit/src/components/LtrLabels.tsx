@@ -39,7 +39,7 @@ export function DeedLabel({
   );
 }
 
-/** Work-order / PO display (no routing — use app PoNumber for links). */
+/** Work-order / PO display (no routing). */
 export function PoLabel({
   value,
   className,

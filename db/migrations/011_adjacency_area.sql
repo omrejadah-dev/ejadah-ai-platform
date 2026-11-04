@@ -1,10 +1,9 @@
 -- 011_adjacency_area.sql — two accuracy fixes found by the backtest (tools/pricing/, PLAN.md section 4)
 --  1. market.district_adjacency filled from the district polygons (tools/geo/build_adjacency.py → data/geo/district_adjacency.csv),
---     so a thin district falls back to its neighbours (level 3) instead of the whole city.
+--     so a thin district falls back to its neighbours (level 3) instead of the whole city. (The load itself is in
+--     db/reload/03_geo.sql.)
 --  2. estimate_price weights comparables by size similarity as well as recency.
-TRUNCATE market.district_adjacency;
-COPY market.district_adjacency (district_id, neighbor_id) FROM '/data/geo/district_adjacency.csv' WITH (FORMAT csv, HEADER true);
-SELECT count(*) AS adjacency_pairs FROM market.district_adjacency;
+-- History only: the current engine is db/functions/estimate_price.sql, re-applied by db/migrate.sh after the migrations.
 
 CREATE OR REPLACE FUNCTION market.estimate_price(
   p_city_id     int,

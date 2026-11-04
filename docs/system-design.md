@@ -168,4 +168,4 @@ docker compose -f infra/docker-compose.prod.yml --env-file infra/local-rehearsal
 
 ما جُرّب على هذه البروفة (2026-10-21): الدخول برمز من السجل، الخريطة (139 حياً)، لوحة الحي، التسعير وشاشة النتيجة؛ خريطة المدينة مضغوطة من 415KB إلى 106KB؛ حد nginx لرموز SMS (الرابع يُرفض)؛ حد nginx لكل IP (150 طلباً متزامناً: 90 قُبلت و60 رُفضت)؛ ترويسة تخزين واحدة للملفات الثابتة.
 
-**على الخادم الحقيقي:** `cp infra/.env.example infra/.env` وتعبئة الأسرار، ثم `--profile db --profile monitoring`، ثم تحميل البيانات بالهجرات `001`–`014` من `db/migrations/` (أو استعادة نسخة كاملة بـ`pg_restore`، أسرع: دقيقة)، ثم فتح كتلة TLS في `infra/nginx/nginx.conf` بعد certbot.
+**على الخادم الحقيقي:** `cp infra/.env.example infra/.env` وتعبئة الأسرار، ثم `--profile db --profile monitoring`، ثم بناء القاعدة بـ`bash db/migrate.sh` (الهيكل: كل الهجرات ثم الدوال، بلا `--dev` فلا حسابات تجريبية) وتحميل البيانات بـ`bash db/reload/run.sh` (نحو 6 دقائق؛ التفاصيل في `db/README.md`)، أو استعادة نسخة كاملة بـ`pg_restore` (أسرع: دقيقة)؛ ثم إدخال أول مدير حقيقي في `identity.admins` يدوياً، ثم فتح كتلة TLS في `infra/nginx/nginx.conf` بعد certbot.

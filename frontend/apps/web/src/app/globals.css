@@ -10,6 +10,7 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface3); /* the kit's Skeleton bars */
   --color-border: var(--border);
   --color-border-md: var(--border-md);
   --color-text: var(--text-1);
@@ -51,7 +52,8 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-html { background: var(--bg); color: var(--text-1); }
+/* keep the scrollbar space reserved: short and long pages line up, nothing jumps when navigating */
+html { background: var(--bg); color: var(--text-1); scrollbar-gutter: stable; }
 body { min-height: 100svh; }
 
 @keyframes map-in {

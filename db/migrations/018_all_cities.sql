@@ -1,0 +1,3 @@
+-- 018: pricing opens to every city in the Kingdom, not only Riyadh and Jeddah: a city is shown (cities.enabled)
+-- while it has market deals. That rule is data, so it lives in the reload: db/reload/02_transform.sql sets it after
+-- every load (the only place it is set). This file is kept so the numbering stays readable.

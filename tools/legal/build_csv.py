@@ -1,4 +1,4 @@
-"""Merge the article files into one CSV for the database (db/migrations/015_legal.sql loads it from /data/legal/).
+"""Merge the article files into one CSV for the database (db/reload/04_legal.sql loads it from /data/legal/).
 usage: python tools/legal/build_csv.py
 """
 import csv, json

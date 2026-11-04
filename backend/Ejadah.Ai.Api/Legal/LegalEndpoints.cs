@@ -10,7 +10,6 @@ namespace Ejadah.Ai.Api.Legal;
 public static class LegalEndpoints
 {
     public const string Disclaimer = "إجابات استرشادية من نصوص الأنظمة، وليست استشارة قانونية.";
-    private static readonly TimeSpan AiTimeout = TimeSpan.FromSeconds(25);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public sealed record AskRequest(string Question);
@@ -31,7 +30,7 @@ public static class LegalEndpoints
         {
             var question = (req.Question ?? "").Trim();
             if (question.Length is < 3 or > 500)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["question"] = ["اكتب سؤالاً بين 3 و500 حرف"] });
+                return Problems.Invalid("question", "اكتب سؤالاً بين 3 و500 حرف");
 
             // search by meaning (016) when the model service answers, by keywords (015) otherwise
             var sw = Stopwatch.StartNew();
@@ -45,35 +44,20 @@ public static class LegalEndpoints
                                                            JsonSerializer.Deserialize<List<string>>(r.Amendments) ?? [], r.SourceUrl)).ToList();
 
             // the model writes the answer from these articles; if it fails or is slow, the articles themselves are the answer
-            LegalAnswer answer;
-            AiCallLog log;
-            var aiWatch = Stopwatch.StartNew();
-            using (var cts = CancellationTokenSource.CreateLinkedTokenSource(ct))
-            {
-                cts.CancelAfter(AiTimeout);
-                try
-                {
-                    answer = await ai.AnswerAsync(question, sources, cts.Token);
-                    log = new AiCallLog("legal", ai.Provider, answer.Model, true, (int)aiWatch.ElapsedMilliseconds, answer.InputTokens, answer.OutputTokens,
-                                        null, JsonSerializer.Serialize(new { answer.Cited }, Json));
-                }
-                catch (Exception ex) when (!ct.IsCancellationRequested)
-                {
-                    logs.CreateLogger("Ejadah.Ai").LogWarning(ex, "legal answer failed; returning the sources only");
-                    answer = MockLegalAnswerer.Build(sources, "fallback");
-                    log = new AiCallLog("legal", ai.Provider, null, false, (int)aiWatch.ElapsedMilliseconds, null, null,
-                                        ex is OperationCanceledException ? "timeout" : ex.GetType().Name + ": " + ex.Message, null);
-                }
-            }
+            var (generated, log) = await AiCall.RunAsync("legal", ai.Provider, t => ai.AnswerAsync(question, sources, t),
+                (a, ms) => new AiCallLog("legal", ai.Provider, a.Model, true, ms, a.InputTokens, a.OutputTokens, null, JsonSerializer.Serialize(new { a.Cited }, Json)),
+                logs.CreateLogger("Ejadah.Ai"), ct);
+            var answer = generated ?? MockLegalAnswerer.Build(sources, "fallback");
 
-            var seatId = http.User.PrincipalId();
+            // an admin asking is not a seat: seat_id references identity.seats, the admin goes in admin_id (019)
+            var seatId = http.User.SeatId(); var adminId = http.User.AdminId();
             var citedIds = answer.Cited.Select(n => sources[n - 1].Id).ToArray();
             var id = await db.ScalarAsync<Guid>(
                 """
-                insert into app.legal_questions (seat_id, question, answer, cited, provider, duration_ms, search)
-                values (@seatId, @question, @answer, @cited, @provider, @ms, @search) returning id
-                """, new { seatId, question, answer = answer.Answer, cited = citedIds, provider = answer.Provider, ms = (int)sw.ElapsedMilliseconds, search }, ct);
-            await (log with { SeatId = seatId }).SaveAsync(db, ct);
+                insert into app.legal_questions (seat_id, admin_id, question, answer, cited, provider, duration_ms, search)
+                values (@seatId, @adminId, @question, @answer, @cited, @provider, @ms, @search) returning id
+                """, new { seatId, adminId, question, answer = answer.Answer, cited = citedIds, provider = answer.Provider, ms = (int)sw.ElapsedMilliseconds, search }, ct);
+            await (log with { SeatId = seatId, AdminId = adminId }).SaveAsync(db, ct);
 
             var dto = sources.Select((s, i) => new SourceDto(s.Id, s.Title, s.Label, s.Chapter, s.Text, s.Amendments, s.SourceUrl,
                                                              i + 1, answer.Cited.Contains(i + 1))).ToList();
@@ -92,8 +76,8 @@ public static class LegalEndpoints
          .WithSummary("الأنظمة المحمّلة في المكتبة");
 
         g.MapGet("/history", (int? limit, HttpContext http, Db db, CancellationToken ct) => db.QueryAsync<HistoryDto>(
-            "select id, created_at, question, answer from app.legal_questions where seat_id = @seatId order by created_at desc limit @limit",
-            new { seatId = http.User.PrincipalId(), limit = Math.Clamp(limit ?? 10, 1, 50) }, ct))
+            "select id, created_at, question, answer from app.legal_questions where seat_id = @seatId or admin_id = @adminId order by created_at desc limit @limit",
+            new { seatId = http.User.SeatId(), adminId = http.User.AdminId(), limit = Math.Clamp(limit ?? 10, 1, 50) }, ct))
          .WithSummary("آخر أسئلتي");
     }
 }

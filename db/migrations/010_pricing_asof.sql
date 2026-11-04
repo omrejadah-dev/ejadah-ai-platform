@@ -1,4 +1,5 @@
 -- 010_pricing_asof.sql — estimate_price gains an optional p_as_of date for honest backtesting.
+-- History only: estimate_price below was replaced; the current engine is db/functions/estimate_price.sql (re-applied by db/migrate.sh).
 -- With p_as_of the engine sees only deals strictly before that date (and whole months before it in the monthly views),
 -- so a deal can be priced without seeing itself or anything after it. Without p_as_of, behaviour is unchanged.
 DROP FUNCTION IF EXISTS market.estimate_price(int, int, text, numeric, text, text);

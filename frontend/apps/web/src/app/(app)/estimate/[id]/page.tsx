@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Button, Card, CardBody, CardHeader, cn, Note, Spinner, Table, TBody, Td, Th, THead, Tr } from "@platform/ui-kit";
+import { Badge, Button, buttonLinkClassName, Card, CardBody, CardHeader, cn, Note, Table, TBody, Td, Th, THead, Tr } from "@platform/ui-kit";
 import { TrendChart } from "@/components/TrendChart";
-import { api, CONFIDENCE_LABEL, fmt, TYPE_LABEL, type EstimateResponse, type PricingBreakdown } from "@/lib/api";
+import { api, CONFIDENCE_LABEL, TYPE_LABEL, type EstimateResponse, type PricingBreakdown } from "@/lib/api";
+import { fmt } from "@/lib/format";
+import { QueryView } from "@/components/QueryView";
 import { confidenceTone } from "@/lib/ui";
 
 const LEVEL_TEXT: Record<number, string> = { 1: "صفقات في نفس المخطط", 2: "صفقات في نفس الحي", 3: "صفقات في الحي والأحياء المجاورة", 4: "صفقات على مستوى المدينة" };
@@ -16,10 +18,15 @@ export default function EstimatePage() {
   const { id } = useParams<{ id: string }>();
   const q = useQuery({ queryKey: ["estimate", id], queryFn: () => api<EstimateResponse>(`/api/estimates/${id}`) });
 
-  if (q.isLoading) return <div className="grid place-items-center py-20"><Spinner /></div>;
-  if (q.isError || !q.data) return <Note tone="danger">تعذّر تحميل التسعير.</Note>;
+  return (
+    <QueryView q={q} errorLine="تعذّر تحميل التسعير" className="py-20">
+      {(data) => <EstimateView data={data} />}
+    </QueryView>
+  );
+}
 
-  const { request: r, result: res, grossYieldPct, pricing } = q.data;
+function EstimateView({ data }: { data: EstimateResponse }) {
+  const { request: r, result: res, grossYieldPct, pricing } = data;
   const insufficient = res.confidence === "insufficient";
   const finalTotal = pricing?.finalTotal ?? res.total_estimate;
   const finalPpm = pricing?.finalPpm ?? res.ppm_estimate;
@@ -30,11 +37,9 @@ export default function EstimatePage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs font-bold text-gold-d">{TYPE_LABEL[r.propertyType]} · {fmt(r.areaM2)} م²{r.planNo ? ` · مخطط ${r.planNo}` : ""}{r.plotNo ? ` · قطعة ${r.plotNo}` : ""}</div>
-          <h1 className="text-2xl font-extrabold text-heading">نتيجة التسعير</h1>
-          <p className="text-xs text-text-3">البيانات حتى {res.data_as_of}</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/estimate/new"><Button variant="default"><i className="ti ti-plus" aria-hidden /> تسعير جديد</Button></Link>
+          <Link href="/estimate/new" className={buttonLinkClassName()}><i className="ti ti-plus" aria-hidden /> تسعير جديد</Link>
           <Button variant="outline" disabled title="قريباً"><i className="ti ti-printer" aria-hidden /> طباعة التقرير</Button>
         </div>
       </div>
@@ -151,7 +156,7 @@ function Breakdown({ p }: { p: PricingBreakdown }) {
       {chips.map((c, i) => (
         <span key={i} className="flex items-center gap-2">
           <span className="text-text-3">{c.tone === "down" ? "−" : "+"}</span>
-          <span className={cn("rounded-lg px-3 py-1.5", c.tone === "down" ? "bg-[#fbeaea] text-[#a33a3a]" : "bg-[#e7f4ec] text-[#23794a]")}>
+          <span className={cn("rounded-lg px-3 py-1.5", c.tone === "down" ? "bg-danger-bg text-danger-text" : "bg-success-bg text-success-text")}>
             {c.label} <b dir="ltr">{c.value}</b>
           </span>
         </span>
@@ -176,7 +181,7 @@ function AiReason({ p }: { p: PricingBreakdown }) {
         <ul className="mt-2 flex flex-wrap gap-2 text-xs">
           {p.aiItems.map((i, k) => (
             <li key={k} className="flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-text-2">
-              <i className={cn("ti", i.effect === "up" ? "ti-arrow-up text-[#23794a]" : i.effect === "down" ? "ti-arrow-down text-[#a33a3a]" : "ti-minus text-text-3")} aria-hidden />
+              <i className={cn("ti", i.effect === "up" ? "ti-arrow-up text-success-text" : i.effect === "down" ? "ti-arrow-down text-danger-text" : "ti-minus text-text-3")} aria-hidden />
               {i.label}
             </li>
           ))}

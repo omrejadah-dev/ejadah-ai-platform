@@ -1,34 +1,40 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppModal, Badge, Button, Card, CardBody, CardHeader, FormGroup, Input, Note, Select, Spinner, Table, TBody, Td, Th, THead, Tr, Textarea, useToast } from "@platform/ui-kit";
-import { api, ApiError, fmt } from "@/lib/api";
-import { addDays, dateOnly, dateTime, daysUntil, deviceLabel, localPhone, STATUS_LABEL, statusTone, type AccountDetail, type Plan, type Seat } from "@/lib/admin";
+import { AppModal, Badge, Button, Card, CardBody, CardHeader, confirmAction, FormGroup, Input, Note, Select, Table, TBody, Td, Th, THead, Tr, Textarea, useToast } from "@platform/ui-kit";
+import { api, ApiError } from "@/lib/api";
+import { addDays, daysUntil, deviceLabel, STATUS_LABEL, statusTone, type AccountDetail, type Plan, type Seat } from "@/lib/admin";
+import { dateOnly, dateTime, fmt, localPhone } from "@/lib/format";
+import { QueryView } from "@/components/QueryView";
 import { ROLE_LABEL } from "@/lib/ui";
 
 export default function AdminAccountPage() {
   const { id } = useParams<{ id: string }>();
   const q = useQuery({ queryKey: ["admin", "account", id], queryFn: () => api<AccountDetail>(`/api/admin/accounts/${id}`) });
-  const [seatModal, setSeatModal] = useState<Seat | "new" | null>(null);
+  return (
+    <QueryView q={q} errorLine="تعذّر تحميل الحساب" className="py-16">
+      {(detail) => <AccountView detail={detail} />}
+    </QueryView>
+  );
+}
 
-  if (q.isError) return <Note tone="danger">{q.error.message}</Note>;
-  if (!q.data) return <div className="grid place-items-center py-16"><Spinner /></div>;
-  const { account: a, seats } = q.data;
+function AccountView({ detail }: { detail: AccountDetail }) {
+  const { account: a, seats } = detail;
+  const [seatModal, setSeatModal] = useState<Seat | "new" | null>(null);
+  // the form keeps unsaved edits across refetches (a seat change reloads the account); only its own save starts it over
+  const [formRev, setFormRev] = useState(0);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Link href="/admin/accounts" className="text-sm font-bold text-text-3 hover:text-ink"><i className="ti ti-arrow-right align-middle" aria-hidden /> الحسابات</Link>
         <h2 className="text-xl font-extrabold text-heading">{a.name}</h2>
         <Badge tone={statusTone(a.status)}>{STATUS_LABEL[a.status]}</Badge>
         <span className="text-sm text-text-3">{ROLE_LABEL[a.role]} · أُنشئ {dateOnly(a.createdAt)}</span>
       </div>
 
-      {/* remounts with fresh values whenever the account is reloaded */}
-      <AccountForm key={q.dataUpdatedAt} detail={q.data} />
+      <AccountForm key={`${a.id}:${formRev}`} detail={detail} onSaved={() => setFormRev((r) => r + 1)} />
 
       <Card>
         <CardHeader>
@@ -55,7 +61,7 @@ export default function AdminAccountPage() {
   );
 }
 
-function AccountForm({ detail }: { detail: AccountDetail }) {
+function AccountForm({ detail, onSaved }: { detail: AccountDetail; onSaved: () => void }) {
   const a = detail.account;
   const qc = useQueryClient();
   const { showToast } = useToast();
@@ -67,9 +73,11 @@ function AccountForm({ detail }: { detail: AccountDetail }) {
     mutationFn: (body: typeof f) => api(`/api/admin/accounts/${a.id}`, {
       method: "PUT", json: { ...body, seatsTotal: Number(body.seatsTotal), notes: body.notes || null },
     }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin"] });
+    onSuccess: async () => {
       showToast("تم الحفظ", "success");
+      // wait for the fresh account, then start the form over from it
+      await qc.invalidateQueries({ queryKey: ["admin"] });
+      onSaved();
     },
   });
   const err = save.error instanceof ApiError ? save.error : null;
@@ -150,7 +158,9 @@ function SeatRow({ seat: s, accountId, onEdit }: { seat: Seat; accountId: string
           <Button size="sm" variant="ghost" disabled={!s.online || signout.isPending} onClick={() => signout.mutate()}>تسجيل خروج</Button>
           {!s.isOwner ? (
             <Button size="sm" variant="dangerOutline" disabled={remove.isPending}
-              onClick={() => { if (confirm(`حذف المقعد ${localPhone(s.phone)}؟`)) remove.mutate(); }}>حذف</Button>
+              onClick={async () => {
+                if (await confirmAction({ title: "حذف المقعد", message: `حذف المقعد ${localPhone(s.phone)}؟`, confirmLabel: "حذف", danger: true })) remove.mutate();
+              }}>حذف</Button>
           ) : null}
         </div>
       </Td>

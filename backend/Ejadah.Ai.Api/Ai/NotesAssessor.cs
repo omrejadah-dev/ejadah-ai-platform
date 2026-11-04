@@ -140,7 +140,7 @@ public static class AiRegistration
             INotesAssessor inner = string.IsNullOrWhiteSpace(key)
                 ? new MockNotesAssessor()
                 : new AnthropicNotesAssessor(sp.GetRequiredService<AnthropicClient>(), model);
-            return new ResilientNotesAssessor(inner, AiGuard.FromConfig(config));
+            return new ResilientNotesAssessor(inner, AiGuard.FromConfig(config, "Notes", 20));
         });
 
         var legalModel = config["Anthropic:LegalModel"] ?? model;
@@ -149,7 +149,7 @@ public static class AiRegistration
             ILegalAnswerer inner = string.IsNullOrWhiteSpace(key)
                 ? new MockLegalAnswerer()
                 : new AnthropicLegalAnswerer(sp.GetRequiredService<AnthropicClient>(), legalModel);
-            return new ResilientLegalAnswerer(inner, AiGuard.FromConfig(config));
+            return new ResilientLegalAnswerer(inner, AiGuard.FromConfig(config, "Legal", 25));
         });
         return services;
     }

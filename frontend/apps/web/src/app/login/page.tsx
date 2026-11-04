@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@platform/ui-kit";
 import { api, ApiError, type Me } from "@/lib/api";
+import { safeReturnPath } from "@/lib/routes";
 
 const REASON_TEXT: Record<string, string> = {
   session_replaced: "تم تسجيل الدخول من جهاز آخر، فأُنهيت الجلسة هنا.",
@@ -41,9 +42,11 @@ function LoginInner() {
   const boxes = useRef<Array<HTMLInputElement | null>>([]);
   const ready = digits.length === 9 && digits.startsWith("5");
   const reason = params.get("reason");
+  const returnTo = safeReturnPath(params.get("from"));
 
+  // already signed in (or the access cookie only expired and the refresh cookie still works)? go straight back
   useEffect(() => {
-    api<Me>("/api/auth/me", { retry: false }).then(() => router.replace(params.get("from") ?? "/")).catch(() => {});
+    api<Me>("/api/auth/me", { redirectOn401: false }).then(() => router.replace(returnTo)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -77,7 +80,7 @@ function LoginInner() {
     setLoading(true);
     try {
       await api<Me>("/api/auth/verify", { method: "POST", json: { phone: digits, code } });
-      router.replace(params.get("from") ?? "/");
+      router.replace(returnTo);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "تعذّر الاتصال بالخادم");
       setOtp(["", "", "", "", "", ""]);
@@ -178,7 +181,7 @@ function LoginInner() {
           <p className="mt-5 text-center text-xs text-white/55">
             لا يوجد لديك اشتراك؟ تواصل مع إجادة لتفعيل حسابك.
           </p>
-          <p className="mt-8 text-center text-[11px] text-white/35">© 2026 إجادة المهنية للتقييم العقاري</p>
+          <p className="mt-8 text-center text-[11px] text-white/35">© 2026 إجادة  للوساطه العقاريه</p>
         </section>
       </div>
     </div>

@@ -18,7 +18,7 @@ export function useFormDensity(): FormDensity {
   return useContext(FormDensityContext);
 }
 
-/** True inside a compact `FormFlowGrid`: `InfathSection`/`FormRow` dissolve into the grid. */
+/** True inside a compact `FormFlowGrid`: `FormRow` dissolves into the grid. */
 const FormFlowContext = createContext(false);
 
 export function useFormFlow(): boolean {

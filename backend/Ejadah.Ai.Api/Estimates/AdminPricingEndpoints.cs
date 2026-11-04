@@ -19,8 +19,8 @@ public static class AdminPricingEndpoints
 
         g.MapPut("/rules/{id:int}", async (int id, RuleUpdate body, HttpContext http, Db db, CancellationToken ct) =>
         {
-            if (body.Pct is < -50 or > 50) return Results.ValidationProblem(new Dictionary<string, string[]> { ["pct"] = ["النسبة بين −50 و50"] });
-            if (body.MaxAbsPct is < 0 or > 50) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxAbsPct"] = ["الحد بين 0 و50"] });
+            if (body.Pct is < -50 or > 50) return Problems.Invalid("pct", "النسبة بين −50 و50");
+            if (body.MaxAbsPct is < 0 or > 50) return Problems.Invalid("maxAbsPct", "الحد بين 0 و50");
             var adminId = http.User.PrincipalId();
             var row = await db.SingleOrDefaultAsync<AdjustmentRule>(
                 $"""
@@ -28,7 +28,7 @@ public static class AdminPricingEndpoints
                 where id = @id returning {Adjustments.Cols}
                 """, new { id, body.Pct, body.MaxAbsPct, body.Enabled, adminId }, ct);
             if (row is null) return Results.NotFound();
-            await AuthEndpoints.Audit(db, "admin", adminId, "pricing.rule.updated", id.ToString(), http, body, ct);
+            await Audit.WriteAsync(db, PrincipalKinds.Admin, adminId, "pricing.rule.updated", id.ToString(), http, body, ct);
             return Results.Ok(row);
         }).WithSummary("تعديل نسبة");
 
@@ -38,13 +38,13 @@ public static class AdminPricingEndpoints
 
         g.MapPut("/settings/{key}", async (string key, SettingUpdate body, HttpContext http, Db db, CancellationToken ct) =>
         {
-            if (body.Value is < 0 or > 50) return Results.ValidationProblem(new Dictionary<string, string[]> { ["value"] = ["القيمة بين 0 و50"] });
+            if (body.Value is < 0 or > 50) return Problems.Invalid("value", "القيمة بين 0 و50");
             var adminId = http.User.PrincipalId();
             var row = await db.SingleOrDefaultAsync<PricingSetting>(
                 "update app.pricing_settings set value = @Value, updated_at = now(), updated_by = @adminId where key = @key returning key, value, label_ar, updated_at",
                 new { key, body.Value, adminId }, ct);
             if (row is null) return Results.NotFound();
-            await AuthEndpoints.Audit(db, "admin", adminId, "pricing.setting.updated", key, http, body, ct);
+            await Audit.WriteAsync(db, PrincipalKinds.Admin, adminId, "pricing.setting.updated", key, http, body, ct);
             return Results.Ok(row);
         }).WithSummary("تعديل حد");
     }

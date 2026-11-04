@@ -155,7 +155,7 @@ export function StatusBadge({ status, inTable = false }: StatusBadgeProps) {
   );
 }
 
-/** The `BadgeTone` a `STATUS_MAP` status key resolves to — e.g. for `TransactionRow`'s status-colored edge. */
+/** The `BadgeTone` a `STATUS_MAP` status key resolves to — e.g. for a status-colored row edge. */
 export function statusTone(status: string): BadgeTone {
   return (STATUS_MAP[status] ?? ["—", "default"])[1];
 }

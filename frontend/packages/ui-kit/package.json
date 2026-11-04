@@ -8,15 +8,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens.css": "./src/styles/tokens.css",
-    "./animations.css": "./src/styles/animations.css",
-    "./document-reports.css": "./src/styles/document-reports.css"
+    "./animations.css": "./src/styles/animations.css"
   },
   "peerDependencies": {
     "react": "^19",
     "react-dom": "^19"
   },
   "devDependencies": {
-    "@types/google.maps": "^3.58.1",
     "@types/react": "^19",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"

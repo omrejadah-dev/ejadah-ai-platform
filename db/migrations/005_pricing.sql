@@ -1,4 +1,5 @@
 -- 005_pricing.sql — the pricing engine as a single SQL function (spec chapter 6)
+-- History only: estimate_price below was replaced; the current engine is db/functions/estimate_price.sql (re-applied by db/migrate.sh).
 --
 --   SELECT market.estimate_price(city_id, district_id, 'land', 600, 'plan_norm', 'plot_norm');
 --

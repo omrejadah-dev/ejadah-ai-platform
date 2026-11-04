@@ -28,7 +28,6 @@ const toneWash: Record<MobileKpiTone, string> = {
 
 /**
  * Mobile 2×2 KPI cards — same language as property-inspection / inspector stat cards.
- * Pair with `<KpiBand className="hidden lg:flex">` for desktop.
  */
 export function MobileKpiStatCards({
   items,

@@ -1,5 +1,5 @@
 -- 001_schema.sql — market schema: raw deals, reference tables, cleaned deals
--- Run: docker exec -i ejadah-ai-postgres psql -U ejadah -d ejadah_ai -v ON_ERROR_STOP=1 -f /dev/stdin < db/migrations/001_schema.sql
+-- Applied by db/migrate.sh (see db/README.md). Data is loaded separately by db/reload/run.sh.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS market.cities (
   region     text NOT NULL,
   name       text NOT NULL,
   name_norm  text NOT NULL,
-  enabled    boolean NOT NULL DEFAULT false,   -- shown in the UI (Jeddah + Riyadh at launch)
+  enabled    boolean NOT NULL DEFAULT false,   -- shown in the UI (every city with market deals, see 018)
   UNIQUE (region, name_norm)
 );
 

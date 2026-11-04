@@ -44,12 +44,12 @@ project3_property_info/
 ├─ PLAN.md                      ← هذا الملف
 ├─ infra/docker-compose.yml     ← PostgreSQL 17 + pgvector على 5434 (user ejadah / ejadah_dev / db ejadah_ai)
 ├─ .env.example
-├─ db/migrations/
-│  ├─ 001_schema.sql            ← schema market، دوال التطبيع، الجداول المرجعية، deals
-│  ├─ 002_load_raw.sql          ← COPY من /data/consolidated/all_deals.csv
-│  ├─ 003_transform.sql         ← مدن، أحياء، أسماء بديلة، deals النظيف، أعلام الاستبعاد، فهارس
-│  ├─ 004_views.sql             ← العروض المادية
-│  └─ 005_pricing.sql           ← estimate_price + search_districts
+├─ db/                         ← الشرح في db/README.md
+│  ├─ migrate.sh                ← يطبّق الهجرات غير المطبّقة (ops.schema_migrations) ثم db/functions/؛ --dev للحسابات التجريبية
+│  ├─ migrations/NNN_*.sql      ← الهيكل فقط، تُطبَّق مرة واحدة ولا تُعدَّل بعد تطبيقها أبداً
+│  ├─ functions/                ← estimate_price ومساعداته (تُعاد في كل تشغيل)؛ ثوابته في market.pricing_params / pricing_tiers
+│  ├─ reload/run.sh             ← البيانات: raw → transform → geo → legal → refresh (قابل للإعادة، والمعرّفات ثابتة)
+│  └─ seed/dev.sql              ← الحسابات التجريبية (للتطوير فقط)
 ├─ data/consolidated/           ← all_deals.csv (738MB، خارج git) + stats.txt + summary.json
 ├─ property deals/              ← 17 ملف Excel الأصلية (خارج git)
 ├─ laws/                        ← 45 PDF + README + index.csv/json
@@ -62,11 +62,10 @@ project3_property_info/
 ```bash
 cd infra && docker compose up -d
 export MSYS_NO_PATHCONV=1   # على Git Bash فقط
-for f in 001_schema 002_load_raw 003_transform 004_views 005_pricing; do
-  docker exec -i ejadah-ai-postgres psql -U ejadah -d ejadah_ai -v ON_ERROR_STOP=1 < db/migrations/$f.sql
-done
+bash db/migrate.sh --dev      # الهيكل + الدوال + الحسابات التجريبية (الإنتاج بلا --dev)
+bash db/reload/run.sh         # البيانات: التحميل ~20 ث، التنظيف ~4-6 دقائق، الجغرافيا والأنظمة ثوانٍ، العروض ~دقيقة
 ```
-الأزمنة: التحميل 19 ث، التنظيف 3.5 دقيقة، العروض 16 ث. `003` و`004` يُعاد بناؤهما من الصفر في كل تشغيل.
+قاعدة قائمة بُنيت قبل `migrate.sh`: مرة واحدة `bash db/migrate.sh --baseline 019` ثم `bash db/migrate.sh`.
 
 ---
 
@@ -174,7 +173,7 @@ land: قطعة أرض، أرض فضاء، أرض مسورة · villa: فيلا،
 - [x] `identity`: plans_catalog, accounts, seats, admins, otp_codes, sessions ؛ `ops.audit_log`
 - [x] الأدوار والقدرات (سياسات تفويض باسم القدرة، جدول 4.2)؛ الحد اليومي للتسعيرات من الباقة (`429 daily_limit`)
 - [x] حسابات تجريبية (الرموز تظهر في سجل الخادم):
-  `0500000001` وسيط · `0500000002` مدير مكتب · `0500000003` موظف مكتب · `0500000004` مستثمر · `0500000005` مطوّر · `0500000009` مدير نظام
+  `0500000001` وسيط · `0500000002` مدير مكتب · `0500000003` موظف مكتب · `0500000004` مستثمر · `0500000005` مطوّر · `0500000000` مدير نظام
 - [x] **تعديلات المواصفات** (2026-10-21، `012_adjustments.sql`): `app.adjustment_rules` (23 قاعدة: العمر لكل سنة، الأدوار فوق الأول، 6 مميزات، لكل نوع؛ كلها 0% حتى تصل نسب إجادة) و`app.pricing_settings` (سقف مجموع القواعد 30%، سقف الذكاء الاصطناعي 15%). `POST /api/estimates` يعيد `pricing`: سعر السوق، البنود، السعر النهائي، ويُحفظ في `app.valuations.adjustments`. للمدير: `GET/PUT /api/admin/pricing/rules` و`/settings` مع سجل التدقيق
 - [ ] إدارة المقاعد للمكتب (`/api/seats`)
 - [ ] الملف التعريفي للوسيط (`app.broker_profiles`)
@@ -259,7 +258,7 @@ land: قطعة أرض، أرض فضاء، أرض مسورة · villa: فيلا،
 
 ## 6. قرارات تقنية صغيرة تستحق التذكر
 - `market` يُقرأ بـSQL مباشر؛ لا تمر صفقات عبر EF Core.
-- أي إعادة تحميل بيانات = تشغيل `003` ثم `004` (يبنيان من الصفر)، ثم `REFRESH MATERIALIZED VIEW market.mv_meta;` (تاريخ البيانات مخزّن منذ `014`).
+- أي إعادة تحميل بيانات = `bash db/reload/run.sh` (أو خطوات منه: `transform geo refresh`). آمن والتطبيق يعمل: الجداول تُبدَّل في معاملة واحدة والعروض المادية تُحدَّث `CONCURRENTLY`، ومعرّفات المدن والأحياء والمواد لا تتغير. لا تحديث دوري في الإنتاج: البيانات تُحمَّل مرة.
 - `cities.enabled` هو مفتاح فتح مدينة جديدة بلا نشر.
 - `type_mapping` و`district_aliases` جداول بيانات تُحرر من لوحة المدير لا من الكود.
 - Git Bash على ويندوز: `export MSYS_NO_PATHCONV=1` قبل أي أمر يمرر مسارات `/data` إلى Docker.

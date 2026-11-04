@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Card, CardBody, CardHeader } from "@platform/ui-kit";
-import { api, CONFIDENCE_LABEL, fmt, TYPE_LABEL, type EstimateResult, type PropertyType, type ValuationSummary } from "@/lib/api";
+import { api, CONFIDENCE_LABEL, TYPE_LABEL, type PropertyType, type ValuationSummary } from "@/lib/api";
+import { dateTime, fmt } from "@/lib/format";
 import { useMe } from "@/providers/MeProvider";
 import { confidenceTone } from "@/lib/ui";
 import { MarketMap } from "@/components/MarketMap";
 import { FEATURES } from "@/lib/features";
+import { EmptyLine, ListSkeleton, QueryView } from "@/components/QueryView";
 
 const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
   { type: "land", icon: "ti-map-2", hint: "قطعة أرض سكنية أو تجارية" },
@@ -19,17 +21,9 @@ const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
 export default function HomePage() {
   const me = useMe();
   const recent = useQuery({ queryKey: ["estimates", 3], queryFn: () => api<ValuationSummary[]>("/api/estimates?limit=3"), enabled: FEATURES.estimate });
-  const meta = useQuery({ queryKey: ["meta"], queryFn: () => api<{ dataAsOf: string; marketDeals: number }>("/api/meta") });
-
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-heading">مرحباً {me.name ?? ""}</h1>
-        <p className="mt-1 text-sm text-text-2">
-          {FEATURES.estimate ? "اختر نوع العقار لبدء التسعير." : "اضغط على أي حي في الخريطة لعرض أسعاره وصفقاته."}
-          {meta.data ? ` البيانات حتى ${meta.data.dataAsOf.slice(0, 10)} من ${fmt(meta.data.marketDeals)} صفقة سوقية.` : ""}
-        </p>
-      </div>
+      <h2 className="text-2xl font-extrabold text-heading">مرحباً {me.name ?? ""}</h2>
 
       <MarketMap />
 
@@ -52,26 +46,27 @@ export default function HomePage() {
           <Link href="/my-estimates" className="text-xs font-bold text-gold-d hover:text-heading">عرض الكل</Link>
         </CardHeader>
         <CardBody>
-          {recent.data?.length ? (
-            <ul className="divide-y divide-border">
-              {recent.data.map((v) => (
-                <li key={v.id}>
-                  <Link href={`/estimate/${v.id}`} className="flex items-center justify-between gap-3 py-3 hover:bg-row-hover">
-                    <div>
-                      <div className="font-bold text-text">{TYPE_LABEL[v.typeGroup]} · {v.district ?? v.city} · {fmt(v.areaM2)} م²</div>
-                      <div className="text-xs text-text-3">{new Date(v.createdAt).toLocaleString("ar-SA-u-nu-latn-ca-gregory", { dateStyle: "medium", timeStyle: "short" })}</div>
-                    </div>
-                    <div className="text-end">
-                      <div className="font-extrabold text-heading">{fmt(v.totalEstimate)} ريال</div>
-                      <Badge tone={confidenceTone(v.confidence)}>{CONFIDENCE_LABEL[v.confidence as EstimateResult["confidence"]]}</Badge>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="py-6 text-center text-sm text-text-3">لا توجد تسعيرات بعد. ابدأ باختيار نوع العقار أعلاه.</p>
-          )}
+          <QueryView q={recent} loading={<ListSkeleton />}
+            empty={<EmptyLine className="py-6">لا توجد تسعيرات بعد. ابدأ باختيار نوع العقار أعلاه.</EmptyLine>}>
+            {(list) => (
+              <ul className="divide-y divide-border">
+                {list.map((v) => (
+                  <li key={v.id}>
+                    <Link href={`/estimate/${v.id}`} className="flex items-center justify-between gap-3 py-3 hover:bg-row-hover">
+                      <div>
+                        <div className="font-bold text-text">{TYPE_LABEL[v.typeGroup]} · {v.district ?? v.city} · {fmt(v.areaM2)} م²</div>
+                        <div className="text-xs text-text-3">{dateTime(v.createdAt)}</div>
+                      </div>
+                      <div className="text-end">
+                        <div className="font-extrabold text-heading">{fmt(v.totalEstimate)} ريال</div>
+                        <Badge tone={confidenceTone(v.confidence)}>{CONFIDENCE_LABEL[v.confidence]}</Badge>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </QueryView>
         </CardBody>
       </Card>
       </>

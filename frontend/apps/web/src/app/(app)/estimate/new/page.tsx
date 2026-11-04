@@ -1,10 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, Card, CardBody, CardHeader, cn, FormGroup, Input, Note, Select, Textarea } from "@platform/ui-kit";
-import { api, ApiError, TYPE_LABEL, type City, type District, type EstimateRequest, type EstimateResponse, type PropertyType } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Card, CardBody, CardHeader, cn, FormGroup, Input, Note, QueryErrorState, Textarea } from "@platform/ui-kit";
+import { api, ApiError, isPropertyType, TYPE_LABEL, type City, type District, type EstimateRequest, type EstimateResponse, type PropertyType } from "@/lib/api";
+import { fmt } from "@/lib/format";
+import { busiestCityId, CityPicker, groupCities } from "@/components/CityPicker";
+import { DistrictAutocomplete } from "@/components/DistrictAutocomplete";
 
 const FEATURES: { key: string; label: string }[] = [
   { key: "elevator", label: "مصعد" }, { key: "garden", label: "حديقة" }, { key: "pool", label: "مسبح" },
@@ -12,87 +15,91 @@ const FEATURES: { key: string; label: string }[] = [
 ];
 const AREA_RANGE: Record<PropertyType, [number, number]> = { land: [50, 1_000_000], apartment: [30, 2_000], villa: [100, 20_000], building: [100, 20_000] };
 
-function useDebounced<T>(v: T, ms = 250) {
-  const [d, setD] = useState(v);
-  useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]);
-  return d;
+type Form = {
+  type: PropertyType;
+  /** null until the user picks: the busiest city is the default (derived, not copied into state) */
+  cityId: number | null;
+  district: District | null;
+  planNo: string; plotNo: string; area: string; age: string; floors: string; units: string; income: string;
+  features: string[];
+  notes: string;
+};
+/** Switching type keeps the shared fields and clears the type-specific ones (spec 11.4). */
+const TYPE_SPECIFIC: Partial<Form> = { age: "", floors: "", units: "", income: "", features: [] };
+
+const areaOk = (f: Form) => {
+  const [min, max] = AREA_RANGE[f.type];
+  const n = Number(f.area);
+  return f.area !== "" && n >= min && n <= max;
+};
+
+/** The request to send, or null while the form is incomplete. */
+function toRequest(f: Form, cityId: number | null): EstimateRequest | null {
+  if (cityId == null || !f.district || !areaOk(f)) return null;
+  const b: EstimateRequest = { propertyType: f.type, cityId, districtId: f.district.id, areaM2: Number(f.area), features: f.features };
+  if (f.planNo.trim()) b.planNo = f.planNo.trim();
+  if (f.plotNo.trim()) b.plotNo = f.plotNo.trim();
+  if (f.notes.trim()) b.notes = f.notes.trim();
+  if (f.type !== "land") {
+    if (f.age !== "") b.ageYears = Number(f.age);
+    if (f.income !== "") b.annualIncome = Number(f.income);
+    if ((f.type === "villa" || f.type === "building") && f.floors !== "") b.floors = Number(f.floors);
+    if (f.type === "building" && f.units !== "") b.units = Number(f.units);
+  }
+  return b;
 }
 
 function NewEstimateInner() {
   const router = useRouter();
+  const qc = useQueryClient();
   const params = useSearchParams();
-  const initialType = (params.get("type") as PropertyType | null) ?? "land";
 
-  const [type, setType] = useState<PropertyType>(["land", "villa", "apartment", "building"].includes(initialType) ? initialType : "land");
-  const preCity = Number(params.get("cityId")) || "";
-  const preDistrict = Number(params.get("districtId")) && params.get("districtName")
-    ? { id: Number(params.get("districtId")), name: params.get("districtName")!, nMarketDeals: 0 } : null;
-  const [pickedCity, setCityId] = useState<number | "">(preCity);
-  const [district, setDistrict] = useState<District | null>(preDistrict);
-  const [districtQ, setDistrictQ] = useState(preDistrict?.name ?? "");
-  const [planNo, setPlanNo] = useState("");
-  const [plotNo, setPlotNo] = useState("");
-  const [area, setArea] = useState("");
-  const [age, setAge] = useState("");
-  const [floors, setFloors] = useState("");
-  const [units, setUnits] = useState("");
-  const [income, setIncome] = useState("");
-  const [features, setFeatures] = useState<string[]>([]);
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // a district panel on the map links here with the type, city and district filled in
+  const [f, setF] = useState<Form>(() => {
+    const t = params.get("type");
+    const districtId = Number(params.get("districtId"));
+    const districtName = params.get("districtName");
+    return {
+      type: isPropertyType(t) ? t : "land",
+      cityId: Number(params.get("cityId")) || null,
+      district: districtId && districtName ? { id: districtId, name: districtName, nMarketDeals: 0 } : null,
+      planNo: "", plotNo: "", area: "", age: "", floors: "", units: "", income: "", features: [], notes: "",
+    };
+  });
+  const patch = (p: Partial<Form>) => setF((x) => ({ ...x, ...p }));
+  const field = (k: "planNo" | "plotNo" | "area" | "age" | "floors" | "units" | "income" | "notes") =>
+    ({ value: f[k], onChange: (e: { target: { value: string } }) => patch({ [k]: e.target.value }) });
 
   const cities = useQuery({ queryKey: ["cities"], queryFn: () => api<City[]>("/api/cities") });
-  // until the user picks one, the first city is the default (derived, not copied into state)
-  const cityId: number | "" = pickedCity !== "" ? pickedCity : (cities.data?.[0]?.id ?? "");
-
-  const q = useDebounced(districtQ);
-  const districts = useQuery({
-    queryKey: ["districts", cityId, q],
-    queryFn: () => api<District[]>(`/api/cities/${cityId}/districts?q=${encodeURIComponent(q)}&limit=12`),
-    enabled: cityId !== "" && (q.length >= 1 || districtQ === ""),
-  });
-
-  // type switch keeps the shared fields and clears the type-specific ones (spec 11.4)
-  function switchType(t: PropertyType) { setType(t); setAge(""); setFloors(""); setUnits(""); setIncome(""); setFeatures([]); }
-
-  const [minA, maxA] = AREA_RANGE[type];
-  const areaN = Number(area);
-  const areaOk = area !== "" && areaN >= minA && areaN <= maxA;
-  const canSubmit = cityId !== "" && district && areaOk;
+  const regions = useMemo(() => groupCities(cities.data), [cities.data]);
+  const cityId = f.cityId ?? busiestCityId(regions);
 
   const submit = useMutation({
     mutationFn: (body: EstimateRequest) => api<EstimateResponse>("/api/estimates", { method: "POST", json: body }),
-    onSuccess: (r) => router.push(`/estimate/${r.id}`),
-    onError: (e) => setError(e instanceof ApiError ? e.message : "تعذّر الاتصال بالخادم"),
+    onSuccess: (r) => {
+      // the new estimate shows at once in "آخر تسعيراتك", "تسعيراتي" and the admin counts
+      qc.invalidateQueries({ queryKey: ["estimates"] });
+      qc.invalidateQueries({ queryKey: ["admin", "overview"] });
+      router.push(`/estimate/${r.id}`);
+    },
   });
 
-  const body = useMemo<EstimateRequest | null>(() => {
-    if (!canSubmit || !district || typeof cityId !== "number") return null;
-    const b: EstimateRequest = { propertyType: type, cityId, districtId: district.id, areaM2: areaN, features };
-    if (planNo.trim()) b.planNo = planNo.trim();
-    if (plotNo.trim()) b.plotNo = plotNo.trim();
-    if (notes.trim()) b.notes = notes.trim();
-    if (type !== "land") {
-      if (age !== "") b.ageYears = Number(age);
-      if (income !== "") b.annualIncome = Number(income);
-      if ((type === "villa" || type === "building") && floors !== "") b.floors = Number(floors);
-      if (type === "building" && units !== "") b.units = Number(units);
-    }
-    return b;
-  }, [canSubmit, cityId, district, type, areaN, features, planNo, plotNo, notes, age, income, floors, units]);
+  const [minA, maxA] = AREA_RANGE[f.type];
+  const areaBad = f.area !== "" && !areaOk(f);
+  const body = toRequest(f, cityId);
+  const d = f.district;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
-        <h1 className="text-2xl font-extrabold text-heading">تسعير عقار</h1>
-        <p className="mt-1 text-sm text-text-2">الحقول تتغير حسب نوع العقار. السعر يُحسب من صفقات حقيقية مشابهة في نفس المخطط أو الحي.</p>
+        <p className="text-sm text-text-2">الحقول تتغير حسب نوع العقار. السعر يُحسب من صفقات حقيقية مشابهة في نفس المخطط أو الحي.</p>
       </div>
 
       {/* type */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2" role="group" aria-label="نوع العقار">
         {(Object.keys(TYPE_LABEL) as PropertyType[]).map((t) => (
-          <button key={t} type="button" onClick={() => switchType(t)}
-            className={cn("rounded-xl border px-3 py-3 text-sm font-bold transition", type === t ? "border-ink bg-ink text-white" : "border-border bg-surface text-text-2 hover:border-gold")}>
+          <button key={t} type="button" aria-pressed={f.type === t} onClick={() => patch({ ...TYPE_SPECIFIC, type: t })}
+            className={cn("rounded-xl border px-3 py-3 text-sm font-bold transition", f.type === t ? "border-ink bg-ink text-white" : "border-border bg-surface text-text-2 hover:border-gold")}>
             {TYPE_LABEL[t]}
           </button>
         ))}
@@ -101,73 +108,61 @@ function NewEstimateInner() {
       <Card>
         <CardHeader><span className="font-bold text-heading">الموقع</span></CardHeader>
         <CardBody className="grid gap-4 sm:grid-cols-2">
-          <FormGroup label="المدينة" htmlFor="city" required>
-            <Select id="city" value={cityId} onChange={(e) => { setCityId(Number(e.target.value)); setDistrict(null); setDistrictQ(""); }}>
-              {cities.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </FormGroup>
-          <FormGroup label="الحي" htmlFor="district" required hint={district ? (district.nMarketDeals ? `${district.name} · ${district.nMarketDeals.toLocaleString("en-US")} صفقة سوقية` : district.name) : "اكتب أول حروف الحي واختر من القائمة"}>
-            <div className="relative">
-              <Input id="district" value={district ? district.name : districtQ} placeholder="مثال: الصفا"
-                onChange={(e) => { setDistrict(null); setDistrictQ(e.target.value); }} autoComplete="off" />
-              {!district && districtQ && districts.data?.length ? (
-                <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-border bg-surface shadow-lg">
-                  {districts.data.map((d) => (
-                    <li key={d.id}>
-                      <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-start text-sm hover:bg-row-hover" onClick={() => { setDistrict(d); setDistrictQ(d.name); }}>
-                        <span>{d.name}</span><span className="text-xs text-text-3">{d.nMarketDeals.toLocaleString("en-US")}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
+          {cities.isError ? (
+            <QueryErrorState className="sm:col-span-2" error={cities.error} line="تعذّر تحميل المدن" onRetry={() => void cities.refetch()} retrying={cities.isFetching} />
+          ) : (
+            <CityPicker regions={regions} cityId={cityId} required idPrefix="estimate" onChange={(id) => patch({ cityId: id, district: null })} />
+          )}
+          <FormGroup className="sm:col-span-2" label="الحي" htmlFor="district" required
+            hint={d ? (d.nMarketDeals ? `${d.name} · ${fmt(d.nMarketDeals)} صفقة سوقية` : d.name) : "اكتب أول حروف الحي واختر من القائمة"}>
+            <DistrictAutocomplete key={cityId ?? "none"} id="district" cityId={cityId} value={d} onChange={(x) => patch({ district: x })} placeholder="مثال: الصفا" showCounts />
           </FormGroup>
           <FormGroup label="رقم المخطط" htmlFor="plan" hint="اختياري، يرفع دقة التسعير إن وُجدت صفقات في نفس المخطط">
-            <Input id="plan" value={planNo} onChange={(e) => setPlanNo(e.target.value)} maxLength={40} dir="auto" />
+            <Input id="plan" {...field("planNo")} maxLength={40} dir="auto" />
           </FormGroup>
           <FormGroup label="رقم القطعة" htmlFor="plot" hint="اختياري">
-            <Input id="plot" value={plotNo} onChange={(e) => setPlotNo(e.target.value)} maxLength={40} dir="auto" />
+            <Input id="plot" {...field("plotNo")} maxLength={40} dir="auto" />
           </FormGroup>
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader><span className="font-bold text-heading">بيانات {TYPE_LABEL[type]}</span></CardHeader>
+        <CardHeader><span className="font-bold text-heading">بيانات {TYPE_LABEL[f.type]}</span></CardHeader>
         <CardBody className="grid gap-4 sm:grid-cols-2">
-          <FormGroup label="المساحة (م²)" htmlFor="area" required error={area !== "" && !areaOk ? `بين ${minA.toLocaleString("en-US")} و ${maxA.toLocaleString("en-US")} م²` : undefined} hasError={area !== "" && !areaOk}>
-            <Input id="area" type="number" inputMode="decimal" min={minA} max={maxA} value={area} onChange={(e) => setArea(e.target.value)} dir="ltr" />
+          <FormGroup label="المساحة (م²)" htmlFor="area" required error={areaBad ? `بين ${fmt(minA)} و ${fmt(maxA)} م²` : undefined} hasError={areaBad}>
+            <Input id="area" type="number" inputMode="decimal" min={minA} max={maxA} {...field("area")} dir="ltr" />
           </FormGroup>
-          {type !== "land" ? (
+          {f.type !== "land" ? (
             <FormGroup label="العمر (سنوات)" htmlFor="age" hint="يُعدَّل السعر بنسبة العمر التي تحددها إجادة، ويظهر التعديل تحت السعر">
-              <Input id="age" type="number" min={0} max={60} value={age} onChange={(e) => setAge(e.target.value)} dir="ltr" />
+              <Input id="age" type="number" min={0} max={60} {...field("age")} dir="ltr" />
             </FormGroup>
           ) : null}
-          {type === "villa" || type === "building" ? (
+          {f.type === "villa" || f.type === "building" ? (
             <FormGroup label="عدد الأدوار" htmlFor="floors">
-              <Input id="floors" type="number" min={1} max={30} value={floors} onChange={(e) => setFloors(e.target.value)} dir="ltr" />
+              <Input id="floors" type="number" min={1} max={30} {...field("floors")} dir="ltr" />
             </FormGroup>
           ) : null}
-          {type === "building" ? (
+          {f.type === "building" ? (
             <FormGroup label="عدد الوحدات" htmlFor="units">
-              <Input id="units" type="number" min={1} max={500} value={units} onChange={(e) => setUnits(e.target.value)} dir="ltr" />
+              <Input id="units" type="number" min={1} max={500} {...field("units")} dir="ltr" />
             </FormGroup>
           ) : null}
-          {type !== "land" ? (
+          {f.type !== "land" ? (
             <FormGroup label="الدخل السنوي (ريال)" htmlFor="income" hint="اختياري، يُعرض العائد الإجمالي كمعلومة">
-              <Input id="income" type="number" min={0} value={income} onChange={(e) => setIncome(e.target.value)} dir="ltr" />
+              <Input id="income" type="number" min={0} {...field("income")} dir="ltr" />
             </FormGroup>
           ) : null}
-          {type !== "land" ? (
+          {f.type !== "land" ? (
             <div className="sm:col-span-2">
-              <div className="mb-2 text-[13px] font-medium text-text-2">المميزات</div>
-              <div className="flex flex-wrap gap-2">
-                {FEATURES.map((f) => {
-                  const on = features.includes(f.key);
+              <div id="features-label" className="mb-2 text-[13px] font-medium text-text-2">المميزات</div>
+              <div className="flex flex-wrap gap-2" role="group" aria-labelledby="features-label">
+                {FEATURES.map((ft) => {
+                  const on = f.features.includes(ft.key);
                   return (
-                    <button key={f.key} type="button" onClick={() => setFeatures(on ? features.filter((x) => x !== f.key) : [...features, f.key])}
+                    <button key={ft.key} type="button" aria-pressed={on}
+                      onClick={() => patch({ features: on ? f.features.filter((x) => x !== ft.key) : [...f.features, ft.key] })}
                       className={cn("rounded-full border px-3 py-1.5 text-xs font-bold transition", on ? "border-ink bg-ink text-white" : "border-border-md bg-surface text-text-2 hover:border-gold")}>
-                      {f.label}
+                      {ft.label}
                     </button>
                   );
                 })}
@@ -176,16 +171,16 @@ function NewEstimateInner() {
           ) : null}
           <div className="sm:col-span-2">
             <FormGroup label="معلومات إضافية" htmlFor="notes" hint="أي شيء غير موجود في الحقول: دخل من مكينة، واجهة، شارع تجاري… يقرؤه الذكاء الاصطناعي ويعدّل السعر بنسبة محدودة، ويظهر السبب تحت السعر">
-              <Textarea id="notes" rows={3} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <Textarea id="notes" rows={3} maxLength={1000} {...field("notes")} />
             </FormGroup>
           </div>
         </CardBody>
       </Card>
 
-      {error ? <Note tone="danger">{error}</Note> : null}
+      {submit.error ? <Note tone="danger">{submit.error instanceof ApiError ? submit.error.message : "تعذّر الاتصال بالخادم"}</Note> : null}
 
       <div className="flex items-center justify-end gap-3">
-        <Button variant="primary" size="lg" disabled={!body || submit.isPending} loading={submit.isPending} onClick={() => { setError(null); if (body) submit.mutate(body); }}>
+        <Button variant="primary" size="lg" disabled={!body || submit.isPending} loading={submit.isPending} onClick={() => { if (body) submit.mutate(body); }}>
           <i className="ti ti-calculator" aria-hidden /> تعرّف على السعر
         </Button>
       </div>

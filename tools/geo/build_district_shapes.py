@@ -4,9 +4,12 @@ Matching is automatic only: same region, same normalised city name, then same no
 (spaces ignored, optional "ال" prefix). Unmatched districts get no shape and are simply not drawn.
 usage: python tools/geo/build_district_shapes.py
 needs data/geo/{districts,cities,regions}.json from github.com/homaily/Saudi-Arabia-Regions-Cities-and-Districts
-and data/geo/ours.txt = psql export "city_id|region|city_name|district_id|district_name|name_norm|n_deals".
+and data/geo/ours.txt = our districts busiest-first, "region|city_name|city_norm|district_name|district_norm|n_deals".
+ours.txt is written from the database when it is missing (or with --refresh-ours); container from PG_CONTAINER.
+The output is keyed by region + city name_norm + district name_norm (market.cities / market.districts natural keys), never by
+district id: ids belong to one database, db/reload/03_geo.sql resolves them at load time.
 """
-import csv, json, re, sys
+import csv, json, os, re, subprocess, sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -17,6 +20,21 @@ REGION = {"الرياض": 1, "مكة المكرمة": 2, "المدينة الم�
 # our city name → dataset city names when they differ (the MOJ data reports Al-Ahsa as one city)
 CITY_ALIASES = {"الاحساء": ["الهفوف", "المبرز"]}
 SKIP = {"حكومي", "صناعي", "المنطقهالصناعيه"}
+OURS_SQL = """
+select c.region, c.name, c.name_norm, d.name, d.name_norm, count(x.deal_id)
+from market.districts d join market.cities c on c.id = d.city_id
+left join market.deals x on x.district_id = d.id and x.is_market_deal
+where not d.is_unknown
+group by c.region, c.name, c.name_norm, d.name, d.name_norm
+order by count(x.deal_id) desc, c.region, c.name_norm, d.name_norm
+"""
+
+
+def export_ours():
+    container = os.environ.get("PG_CONTAINER", "ejadah-ai-postgres")
+    out = subprocess.run(["docker", "exec", "-i", container, "psql", "-U", "ejadah", "-d", "ejadah_ai", "-tA", "-F", "|", "-c", OURS_SQL],
+                         capture_output=True, text=True, encoding="utf-8", check=True).stdout
+    (ROOT / "ours.txt").write_text(out, encoding="utf-8", newline="\n")
 
 
 def norm(t: str) -> str:
@@ -58,6 +76,7 @@ def centroid(geom):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
     geo = json.load(open(ROOT / "districts.json", encoding="utf-8"))
     gcities = json.load(open(ROOT / "cities.json", encoding="utf-8"))
     city_key = {}                                            # (region_id, norm name) → dataset city ids
@@ -69,11 +88,13 @@ def main():
         if k not in SKIP:
             by_city[g["city_id"]][k].append(g)
 
+    if "--refresh-ours" in sys.argv or not (ROOT / "ours.txt").exists():
+        export_ours()
     ours = [l.split("|") for l in (ROOT / "ours.txt").read_text(encoding="utf-8").splitlines() if l.strip()]
     rows, seen, per_city = [], set(), defaultdict(lambda: [0, 0, 0])   # city → [deals, deals with shape, districts with shape]
-    for city_id, region, city_name, did, dname, dnorm, n in ours:
+    for region, city_name, city_norm, dname, dnorm, n in ours:
         n = int(n)
-        stats = per_city[(city_id, region, city_name)]
+        stats = per_city[(region, city_name)]
         stats[0] += n
         rid = REGION.get(region)
         if rid is None:
@@ -95,20 +116,20 @@ def main():
         seen.add(key)
         geom = merge([to_geometry(c["boundaries"]) for c in cand])
         lat, lng = centroid(geom)
-        rows.append([did, cand[0]["name_ar"], json.dumps(geom, separators=(",", ":")), f"{lat:.6f}", f"{lng:.6f}"])
+        rows.append([region, city_norm, dnorm, cand[0]["name_ar"], json.dumps(geom, separators=(",", ":")), f"{lat:.6f}", f"{lng:.6f}"])
         stats[1] += n
         stats[2] += 1
 
     with open(ROOT / "district_shapes.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["district_id", "geo_name", "geometry", "center_lat", "center_lng"])
+        w.writerow(["region", "city", "district", "geo_name", "geometry", "center_lat", "center_lng"])
         w.writerows(rows)
 
     covered = [(k, v) for k, v in per_city.items() if v[2] >= 3]
     covered.sort(key=lambda kv: -kv[1][0])
     tot = sum(v[0] for v in per_city.values()); hit = sum(v[1] for v in per_city.values())
     print(f"wrote {len(rows)} shapes for {len(covered)} cities (>=3 districts); {100*hit/tot:.1f}% of all market deals have a shape")
-    for (cid, reg, name), (n, h, d) in covered[:25]:
+    for (reg, name), (n, h, d) in covered[:25]:
         print(f"  {reg:16} {name:18} districts={d:4} coverage={100*h/max(n,1):5.1f}%")
 
 

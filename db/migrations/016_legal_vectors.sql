@@ -1,16 +1,10 @@
 -- 016_legal_vectors.sql — meaning-based search for the legal assistant (PLAN.md phase E).
 -- Keyword search alone found the right article in the top 6 for 14 of 64 broker-phrased questions: brokers say «المكيف خرب»,
 -- the law says «الإصلاحات الضرورية للمأجور». Each article now also has a BGE-M3 vector, and search_meaning orders by meaning.
--- Source: tools/legal/embed_articles.py -> data/legal/article_vectors.csv. Measure with: python tools/legal/eval_search.py --mode meaning
+-- Source: tools/legal/embed_articles.py -> data/legal/article_vectors.csv, loaded by db/reload/04_legal.sql. Measure with: python tools/legal/eval_search.py --mode meaning
 CREATE EXTENSION IF NOT EXISTS vector;
 
 ALTER TABLE legal.articles ADD COLUMN IF NOT EXISTS embedding vector(1024);
-
-CREATE TEMP TABLE vec_stage (doc_key text, seq int, embedding vector(1024));
-COPY vec_stage FROM '/data/legal/article_vectors.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8');
-UPDATE legal.articles a SET embedding = v.embedding
-FROM vec_stage v JOIN legal.documents d ON d.doc_key = v.doc_key
-WHERE a.document_id = d.id AND a.seq = v.seq;
 
 -- every keyword match with its rank and the share of the question's informative stems it contains (015's logic, unfiltered)
 CREATE OR REPLACE FUNCTION legal.keyword_hits(q text)
@@ -64,4 +58,3 @@ $$;
 
 -- which search answered each question (meaning | keyword), for the admin panel's quality review
 ALTER TABLE app.legal_questions ADD COLUMN IF NOT EXISTS search text;
-SELECT count(*) FILTER (WHERE embedding IS NOT NULL) AS with_vector, count(*) AS articles FROM legal.articles;

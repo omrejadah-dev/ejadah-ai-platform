@@ -8,7 +8,7 @@ name: ejadah-prod
 services:
   postgres:
     profiles: ["db"]
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg17@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d   # digest pinned: the image the data was loaded and measured on
     restart: unless-stopped
     environment:
       POSTGRES_USER: ejadah
@@ -39,6 +39,8 @@ services:
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY (64+ chars)}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       Sms__EchoCodeInResponse: ${SMS_ECHO:-false}
+      Sms__Provider: ${SMS_PROVIDER:-}            # a real provider; the API refuses to start without one outside Development
+      Sms__AllowDummy: ${SMS_ALLOW_DUMMY:-false}  # local rehearsal only: codes go to the API log
       Cors__Origins__0: ${PUBLIC_ORIGIN:-https://ai.ejadah.example}
       Embedder__Url: http://embedder:8000/   # legal search by meaning; keyword search if it is down
     extra_hosts:
@@ -67,7 +69,7 @@ services:
     expose: ["3000"]
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     restart: unless-stopped
     depends_on: [api, web]
     ports:

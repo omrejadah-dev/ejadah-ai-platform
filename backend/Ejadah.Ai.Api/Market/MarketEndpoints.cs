@@ -4,7 +4,7 @@ using Ejadah.Ai.Api.Infrastructure;
 
 namespace Ejadah.Ai.Api.Market;
 
-public sealed record CityDto(int Id, string Name, string Region);
+public sealed record CityDto(int Id, string Name, string Region, long Deals);
 public sealed record DistrictDto(int Id, string Name, long NMarketDeals);
 public sealed record MetaDto(DateOnly DataAsOf, long MarketDeals, long AllDeals);
 
@@ -21,8 +21,12 @@ public static class MarketEndpoints
 
         g.MapGet("/cities", async (Db db, CancellationToken ct) =>
             Results.Ok(await db.QueryAsync<CityDto>(
-                "select id, name, region from market.cities where enabled order by name", ct: ct)))
-         .WithSummary("المدن المفعّلة في الواجهة");
+                """
+                select c.id, c.name, c.region, coalesce(sum(m.n_deals), 0)::bigint as deals
+                from market.cities c left join market.mv_city_month m on m.city_id = c.id
+                where c.enabled group by c.id order by deals desc
+                """, ct: ct)))
+         .WithSummary("المدن المفعّلة في الواجهة، الأكثر صفقات أولاً");
 
         g.MapGet("/cities/{cityId:int}/districts", async (int cityId, string? q, int? limit, Db db, CancellationToken ct) =>
         {
@@ -37,7 +41,7 @@ public static class MarketEndpoints
 
         g.MapGet("/districts/{districtId:int}/history", async (int districtId, string type, Db db, CancellationToken ct) =>
         {
-            if (!EstimateRequest.TypeGroups.Contains(type)) return Results.BadRequest("type must be land|villa|apartment|building");
+            if (!EstimateRequest.TypeGroups.Contains(type)) return Problems.Invalid("type", "النوع: أرض أو فيلا أو شقة أو عمارة");
             var rows = await db.QueryAsync<(int Year, decimal PpmMedian, long NDeals)>(
                 "select year, round(ppm_median::numeric) as ppm_median, n_deals from market.mv_district_year where district_id = @districtId and type_group = @type order by year",
                 new { districtId, type }, ct);

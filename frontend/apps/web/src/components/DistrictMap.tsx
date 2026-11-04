@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { cn } from "@platform/ui-kit";
 import { colorFor } from "./mapScale";
 
 export type DistrictProps = {
@@ -16,17 +17,52 @@ export type DistrictCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon | Geo
 };
 export type RegionProps = { region: string; name: string; center: [number, number]; cityId: number | null; ppm: number | null; n12: number; y: Record<string, [number | null, number]> };
 export type RegionCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, RegionProps> & { scale: { ppm: number[]; count: number[] } };
-type RegionLayer = L.Path & { feature: GeoJSON.Feature<GeoJSON.Geometry, RegionProps> };
-export type Metric = "ppm" | "n12";
-
-type FeatureLayer = L.Path & { feature: GeoJSON.Feature<GeoJSON.Geometry, DistrictProps> };
 
 /** Below this zoom the map shows the 13 regions (Kingdom view); at or above it, the districts of the selected city. */
 const CITY_ZOOM = 9;
-const KINGDOM: [L.LatLngExpression, number] = [[24.2, 44.6], 5.75];
+/** First view before any data arrives: Jeddah. */
+const START_VIEW: [L.LatLngExpression, number] = [[21.55, 39.2], 10.5];
+/** The whole Kingdom, for the "عرض المملكة" button. */
+const KINGDOM_VIEW: [L.LatLngExpression, number] = [[24.2, 44.6], 5.75];
+
+/** Leaflet writes colours into SVG attributes, where CSS variables do not resolve: read the design tokens once. */
+let tokens: { gold: string; surface: string } | null = null;
+function colors() {
+  if (!tokens) {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    tokens = { gold: v("--gold", "#a4906f"), surface: v("--surface", "#ffffff") };
+  }
+  return tokens;
+}
+
+/** Fill by value; a gold outline when highlighted (selected district / current region). */
+function paint(path: L.Path, value: number | null, scale: number[], highlighted: boolean, weight: number) {
+  const c = colors();
+  path.setStyle({ color: highlighted ? c.gold : c.surface, weight: highlighted ? 3 : weight, fillColor: colorFor(value, scale), fillOpacity: value ? 0.74 : 0.3 });
+}
+
+type Layer<P> = L.Path & { feature: GeoJSON.Feature<GeoJSON.Geometry, P> };
+const eachFeature = <P,>(layer: L.GeoJSON | null, fn: (path: L.Path, p: P) => void) =>
+  layer?.eachLayer((l) => fn(l as Layer<P>, (l as Layer<P>).feature.properties));
+
+/** A clickable GeoJSON layer: tooltip, click, gold outline on hover, back to its own style on leave. */
+function interactiveLayer<P>(fc: GeoJSON.FeatureCollection, h: { tooltip: (p: P) => string; click: (p: P) => void; restyle: (path: L.Path, p: P) => void; hoverWeight: number }) {
+  return L.geoJSON(fc, {
+    onEachFeature: (f, lyr) => {
+      const p = f.properties as P;
+      lyr.bindTooltip(() => h.tooltip(p), { sticky: true, direction: "top" });
+      lyr.on({
+        click: () => h.click(p),
+        mouseover: (e) => (e.target as L.Path).setStyle({ weight: h.hoverWeight, color: colors().gold }),
+        mouseout: (e) => h.restyle(e.target as L.Path, p),
+      });
+    },
+  });
+}
 
 export function DistrictMap({
-  data, valueOf, scale, tooltip, selectedId, onSelect, height = 600,
+  data, valueOf, scale, tooltip, selectedId, onSelect, className,
   regions, regionValue, regionScale, regionTooltip, currentRegion, onRegion, onLevel,
 }: {
   data: DistrictCollection | undefined;
@@ -35,7 +71,8 @@ export function DistrictMap({
   tooltip: (p: DistrictProps) => string;
   selectedId: number | null;
   onSelect: (p: DistrictProps) => void;
-  height?: number;
+  /** Height (default "h-[600px]"); responsive classes work, e.g. "h-[440px] sm:h-[600px]". */
+  className?: string;
   regions?: RegionCollection;
   regionValue: (r: RegionProps) => number | null;
   regionScale: number[];
@@ -54,12 +91,10 @@ export function DistrictMap({
     cb.current = { onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel };
   });
 
-  function restyle(path: L.Path, p: DistrictProps) {
-    const v = cb.current.valueOf(p);
-    const sel = p.id === cb.current.selectedId;
-    path.setStyle({ color: sel ? "#a4906f" : "#ffffff", weight: sel ? 3 : 1, fillColor: colorFor(v, cb.current.scale), fillOpacity: v ? 0.74 : 0.3 });
-  }
-  const restyleAll = () => layer.current?.eachLayer((l) => restyle(l as FeatureLayer, (l as FeatureLayer).feature.properties));
+  const restyle = (path: L.Path, p: DistrictProps) => paint(path, cb.current.valueOf(p), cb.current.scale, p.id === cb.current.selectedId, 1);
+  const styleRegion = (path: L.Path, r: RegionProps) => paint(path, cb.current.regionValue(r), cb.current.regionScale, r.region === cb.current.currentRegion, 1.2);
+  const restyleAll = () => eachFeature(layer.current, restyle);
+  const restyleRegions = () => eachFeature(cityLayer.current, styleRegion);
 
   // which level is visible depends only on zoom
   function applyLevel() {
@@ -74,28 +109,13 @@ export function DistrictMap({
     }
   }
 
-  function styleRegion(path: L.Path, r: RegionProps) {
-    const v = cb.current.regionValue(r);
-    const cur = r.region === cb.current.currentRegion;
-    path.setStyle({ color: cur ? "#a4906f" : "#ffffff", weight: cur ? 3 : 1.2, fillColor: colorFor(v, cb.current.regionScale), fillOpacity: v ? 0.74 : 0.3 });
-  }
-  const restyleRegions = () => cityLayer.current?.eachLayer((l) => styleRegion(l as RegionLayer, (l as RegionLayer).feature.properties));
-
   function drawRegions() {
     const m = map.current;
     const fc = cb.current.regions;
     if (!m || !fc) return;
     cityLayer.current?.remove();
-    cityLayer.current = L.geoJSON(fc, {
-      onEachFeature: (f, lyr) => {
-        const r = f.properties as RegionProps;
-        lyr.bindTooltip(() => cb.current.regionTooltip(r), { sticky: true, direction: "top" });
-        lyr.on({
-          click: () => cb.current.onRegion(r),
-          mouseover: (e) => (e.target as L.Path).setStyle({ weight: 3, color: "#a4906f" }),
-          mouseout: (e) => styleRegion(e.target as L.Path, r),
-        });
-      },
+    cityLayer.current = interactiveLayer<RegionProps>(fc, {
+      tooltip: (r) => cb.current.regionTooltip(r), click: (r) => cb.current.onRegion(r), restyle: styleRegion, hoverWeight: 3,
     });
     restyleRegions();
     applyLevel();
@@ -103,7 +123,7 @@ export function DistrictMap({
 
   useEffect(() => {
     if (!el.current || map.current) return;
-    const m = L.map(el.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: true, zoomSnap: 0.25 }).setView([21.55, 39.2], 10.5);
+    const m = L.map(el.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: true, zoomSnap: 0.25 }).setView(...START_VIEW);
     map.current = m;
     // Base tiles: OSM standard for development. Production sets NEXT_PUBLIC_TILE_URL (+ _ATTRIBUTION) to a hosted provider
     // (MapTiler, Stadia…) or self-hosted tiles: OSM's policy does not allow production traffic. The districts draw without it.
@@ -118,9 +138,10 @@ export function DistrictMap({
         const b = L.DomUtil.create("button", "leaflet-bar");
         b.type = "button";
         b.title = "عرض المملكة";
-        b.innerHTML = '<i class="ti ti-world" style="font-size:17px;line-height:30px"></i>';
-        Object.assign(b.style, { width: "34px", height: "34px", background: "#fff", cursor: "pointer", display: "grid", placeItems: "center", color: "#102b4e" });
-        L.DomEvent.on(b, "click", (e) => { L.DomEvent.stop(e); m.flyTo(KINGDOM[0], KINGDOM[1], { duration: 0.8 }); });
+        b.setAttribute("aria-label", "عرض المملكة");
+        b.innerHTML = '<i class="ti ti-world" style="font-size:17px;line-height:30px" aria-hidden="true"></i>';
+        Object.assign(b.style, { width: "34px", height: "34px", background: "var(--surface)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink)" });
+        L.DomEvent.on(b, "click", (e) => { L.DomEvent.stop(e); m.flyTo(KINGDOM_VIEW[0], KINGDOM_VIEW[1], { duration: 0.8 }); });
         return b;
       },
     });
@@ -136,16 +157,8 @@ export function DistrictMap({
     const m = map.current;
     if (!m || !data) return;
     layer.current?.remove();
-    layer.current = L.geoJSON(data, {
-      onEachFeature: (f, lyr) => {
-        const p = f.properties as DistrictProps;
-        lyr.bindTooltip(() => cb.current.tooltip(p), { sticky: true, direction: "top" });
-        lyr.on({
-          click: () => cb.current.onSelect(p),
-          mouseover: (e) => (e.target as L.Path).setStyle({ weight: 2.5, color: "#a4906f" }),
-          mouseout: (e) => restyle(e.target as L.Path, p),
-        });
-      },
+    layer.current = interactiveLayer<DistrictProps>(data, {
+      tooltip: (p) => cb.current.tooltip(p), click: (p) => cb.current.onSelect(p), restyle, hoverWeight: 2.5,
     });
     restyleAll();
 
@@ -175,5 +188,5 @@ export function DistrictMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { restyleAll(); }, [valueOf, scale, selectedId]);
 
-  return <div dir="ltr" ref={el} style={{ height }} className="relative isolate z-0 w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-2" />;
+  return <div dir="ltr" ref={el} className={cn("relative isolate z-0 w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-2", className ?? "h-[600px]")} />;
 }

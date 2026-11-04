@@ -16,12 +16,13 @@ public static class AuthRegistration
 
         services.AddSingleton(opt);
         services.AddSingleton<TokenService>();
-        services.AddSingleton<ISmsSender, DummySmsSender>();   // Sms:Provider switch comes with the real provider
+        services.AddEjadahSms(config, env);
 
-        var tokens = new TokenService(opt);
+        // validation parameters come from the one TokenService in DI (same signing key as the tokens it issues)
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+                .Configure<TokenService>((o, tokens) => o.TokenValidationParameters = tokens.ValidationParameters);
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
         {
-            o.TokenValidationParameters = tokens.ValidationParameters;
             o.MapInboundClaims = false;
             o.Events = new JwtBearerEvents
             {
