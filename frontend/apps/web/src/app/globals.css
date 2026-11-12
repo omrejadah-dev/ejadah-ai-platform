@@ -53,7 +53,8 @@
 }
 
 /* keep the scrollbar space reserved: short and long pages line up, nothing jumps when navigating */
-html { background: var(--bg); color: var(--text-1); scrollbar-gutter: stable; }
+html { background: var(--bg); color: var(--text-1); }
+html:has([data-app-shell]) { scrollbar-gutter: stable; }   /* signed-in pages only: the full-bleed login keeps its edge */
 body { min-height: 100svh; }
 
 @keyframes map-in {

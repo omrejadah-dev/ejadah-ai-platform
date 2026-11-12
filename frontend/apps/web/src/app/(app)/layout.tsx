@@ -76,7 +76,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <MeContext.Provider value={u}>
-      <div className="min-h-svh bg-bg">
+      <div data-app-shell className="min-h-svh bg-bg">
         {/* desktop: sidebar on the start (right) side */}
         <aside className={cn("fixed inset-y-0 start-0 z-30 hidden w-60 flex-col bg-ink text-white", !collapsed && "md:flex")}>
           {/* logo removed until Ejadah sends the correct one (it goes back here as the home link) */}

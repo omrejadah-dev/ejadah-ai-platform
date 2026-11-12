@@ -75,10 +75,24 @@ services:
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}   # filled into the site template (the https redirect target and server name)
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # http (rehearsal / before the certificate) or https; the image turns templates/*.template into conf.d/*
+      - ./nginx/site-${NGINX_SITE:-http}.conf:/etc/nginx/templates/site.conf.template:ro
       - ./nginx/ejadah-locations.conf:/etc/nginx/ejadah-locations.conf:ro
       - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+
+  # Let's Encrypt certificates (docs/system-design.md section 6). Not a running service: used with `run --rm`
+  # for the first certificate and by the renewal cron, through the challenge folder nginx serves on port 80.
+  certbot:
+    profiles: ["certbot"]
+    image: certbot/certbot:v3.0.1
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
 
   # outside-in monitor; in production run it on a second small server or a free external service
   uptime:
@@ -92,4 +106,5 @@ volumes:
   pgdata:
   hf-cache:
   letsencrypt:
+  certbot-www:
   uptime:
