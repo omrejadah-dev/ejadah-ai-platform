@@ -1,6 +1,6 @@
-# Build and check on every push; on main, build the two images and deploy them to the server
-# (docs/system-design.md section 6). Deploy needs these repository secrets:
-#   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY  (the server keeps infra/.env with the app secrets)
+# Build and check on every push; on master, deploy to the server (docs/system-design.md section 6).
+# Deploy needs these repository secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY. The server keeps infra/.env with
+# the app secrets, and reads the repository with its own read-only deploy key.
 name: ci
 
 on:
@@ -31,22 +31,28 @@ jobs:
       - run: npm run build
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     needs: [backend, frontend]
     runs-on: ubuntu-latest
+    concurrency: { group: deploy, cancel-in-progress: false }   # one deploy at a time, none dropped
     steps:
-      - name: Pull, rebuild and restart on the server (previous images stay tagged for rollback)
+      - name: Pull, migrate, rebuild and restart on the server (previous images stay tagged for rollback)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 30m
           script: |
             set -e
             cd /opt/ejadah
-            git fetch --all && git checkout ${{ github.sha }}
+            git fetch origin && git checkout --force ${{ github.sha }}
+            C="docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile db"
             docker tag ejadah-api:latest ejadah-api:previous || true
             docker tag ejadah-web:latest ejadah-web:previous || true
-            docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile db up -d --build
-            sleep 15 && curl -fsS http://localhost/ready
-            # rollback: TAG=previous docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile db up -d
+            PG_CONTAINER=ejadah-prod-postgres-1 bash db/migrate.sh   # new migrations only; never --dev here
+            $C up -d --build --remove-orphans
+            # healthy = /ready answers through nginx on the public name (database loaded, api up)
+            HOST=$(grep -E '^PUBLIC_HOST=' infra/.env | cut -d= -f2)
+            for i in $(seq 1 30); do curl -fsS --resolve "$HOST:443:127.0.0.1" "https://$HOST/ready" && exit 0; sleep 5; done
+            echo "not ready after 150 s; roll back with: TAG=previous $C up -d" >&2; exit 1
