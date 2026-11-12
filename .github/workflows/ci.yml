@@ -1,4 +1,4 @@
-# Build and check on every push; on master, deploy to the server (docs/system-design.md section 6).
+# Build and check on every push; on main, deploy to the server (docs/system-design.md section 6).
 # Deploy needs these repository secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY. The server keeps infra/.env with
 # the app secrets, and reads the repository with its own read-only deploy key.
 name: ci
@@ -31,7 +31,7 @@ jobs:
       - run: npm run build
 
   deploy:
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [backend, frontend]
     runs-on: ubuntu-latest
     concurrency: { group: deploy, cancel-in-progress: false }   # one deploy at a time, none dropped
