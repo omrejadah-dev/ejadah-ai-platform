@@ -52,7 +52,10 @@ jobs:
             docker tag ejadah-web:latest ejadah-web:previous || true
             PG_CONTAINER=ejadah-prod-postgres-1 bash db/migrate.sh   # new migrations only; never --dev here
             $C up -d --build --remove-orphans
-            # healthy = /ready answers through nginx on the public name (database loaded, api up)
+            # recreated containers get new addresses; nginx resolves its upstreams only when it (re)loads
+            $C exec -T nginx nginx -s reload
+            # healthy = through nginx on the public name: /ready (database loaded, api up) and a page (web up)
             HOST=$(grep -E '^PUBLIC_HOST=' infra/.env | cut -d= -f2)
-            for i in $(seq 1 30); do curl -fsS --resolve "$HOST:443:127.0.0.1" "https://$HOST/ready" && exit 0; sleep 5; done
+            ok() { curl -fsS -o /dev/null --resolve "$HOST:443:127.0.0.1" "https://$HOST$1"; }
+            for i in $(seq 1 30); do ok /ready && ok /login && { echo "deployed and ready"; exit 0; }; sleep 5; done
             echo "not ready after 150 s; roll back with: TAG=previous $C up -d" >&2; exit 1
