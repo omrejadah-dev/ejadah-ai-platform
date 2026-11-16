@@ -7,8 +7,8 @@ namespace Ejadah.Ai.Api.Admin;
 
 /// <summary>
 /// Admin panel (PLAN.md phase F): overview, accounts and their seats, sign-outs, and the legal questions log.
-/// Moving a subscription to another phone is a seat phone change here; there is no self-service.
-/// Suspending, disabling or re-numbering revokes the sessions at once; an access token already issued lives out its 15 minutes.
+/// Moving a subscription to another person is a seat email change here, and the admin sets or resets passwords; there is
+/// no self-service yet. Suspending, disabling, a new email or a new password revokes the sessions at once; an access token already issued lives out its 15 minutes.
 /// Each change and its audit row commit together.
 /// </summary>
 public static class AdminEndpoints
@@ -24,26 +24,26 @@ public static class AdminEndpoints
     public sealed record PlanDto(int Id, string Code, string Name, string Role, int Seats, int DailyEstimateLimit, int DurationDays, decimal? PriceSar);
 
     public sealed record AccountDto(Guid Id, string Name, string Role, int? PlanId, string? PlanName, int SeatsTotal, int SeatsUsed,
-                                    string Status, DateOnly StartsAt, DateOnly ExpiresAt, DateTime CreatedAt, string? OwnerPhone,
+                                    string Status, DateOnly StartsAt, DateOnly ExpiresAt, DateTime CreatedAt, string? OwnerEmail,
                                     DateTime? LastSeenAt, int Estimates30d, int Legal30d, string? Notes);
-    public sealed record SeatDto(Guid Id, string Phone, string? DisplayName, bool IsOwner, string Status, DateTime CreatedAt,
+    public sealed record SeatDto(Guid Id, string Email, string? DisplayName, bool IsOwner, string Status, DateTime CreatedAt,
                                  DateTime? LastSeenAt, bool Online, string? Ip, string? UserAgent, int Estimates30d, int Legal30d);
     public sealed record AccountDetailDto(AccountDto Account, IReadOnlyList<SeatDto> Seats);
 
-    public sealed record CreateAccount(string Name, int PlanId, int? SeatsTotal, DateOnly? ExpiresAt, string OwnerPhone, string? OwnerName, string? Notes);
+    public sealed record CreateAccount(string Name, int PlanId, int? SeatsTotal, DateOnly? ExpiresAt, string OwnerEmail, string OwnerPassword, string? OwnerName, string? Notes);
     public sealed record UpdateAccount(string Name, int PlanId, int SeatsTotal, string Status, DateOnly ExpiresAt, string? Notes);
-    public sealed record AddSeat(string Phone, string? DisplayName);
-    public sealed record UpdateSeat(string Phone, string? DisplayName, string Status);
+    public sealed record AddSeat(string Email, string Password, string? DisplayName);
+    public sealed record UpdateSeat(string Email, string? DisplayName, string Status, string? Password);   // Password: only to reset it
 
     public sealed record LegalQuestionDto(Guid Id, DateTime CreatedAt, string Question, string Answer, string Provider, int Cited,
-                                          int? DurationMs, string? Phone, string? AccountName, string? Search);
+                                          int? DurationMs, string? Email, string? AccountName, string? Search);
 
     // status: identity.v_account_status (019) — past its end date counts as expired even while the row still says active
     private const string AccountSql = $"""
         select a.id, a.name, a.role, a.plan_id, p.name as plan_name, a.seats_total,
                (select count(*) from identity.seats s where s.account_id = a.id)::int as seats_used,
                st.status, a.starts_at, a.expires_at, a.created_at,
-               (select s.phone from identity.seats s where s.account_id = a.id and s.is_owner order by s.created_at limit 1) as owner_phone,
+               (select s.email from identity.seats s where s.account_id = a.id and s.is_owner order by s.created_at limit 1) as owner_email,
                (select max(se.last_seen_at) from identity.sessions se join identity.seats s on s.id = se.principal_id
                  where se.principal_kind = '{PrincipalKinds.Seat}' and s.account_id = a.id) as last_seen_at,
                (select count(*) from app.valuations v where v.account_id = a.id and v.created_at > now() - interval '30 days')::int as estimates_30d,
@@ -55,7 +55,7 @@ public static class AdminEndpoints
         """;
 
     private const string SeatSql = $"""
-        select s.id, s.phone, s.display_name, s.is_owner, s.status, s.created_at,
+        select s.id, s.email, s.display_name, s.is_owner, s.status, s.created_at,
                last.last_seen_at, coalesce(last.online, false) as online, last.ip, last.user_agent,
                (select count(*) from app.valuations v where v.seat_id = s.id and v.created_at > now() - interval '30 days')::int as estimates_30d,
                (select count(*) from app.legal_questions q where q.seat_id = s.id and q.created_at > now() - interval '30 days')::int as legal_30d
@@ -108,10 +108,10 @@ public static class AdminEndpoints
             q = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
             return db.QueryAsync<AccountDto>(AccountSql + """
                  where @q::text is null or a.name ilike '%' || @q || '%'
-                    or exists (select 1 from identity.seats s where s.account_id = a.id and replace(s.phone, '+966', '0') like '%' || @q || '%')
+                    or exists (select 1 from identity.seats s where s.account_id = a.id and s.email like '%' || lower(@q) || '%')
                  order by a.created_at desc limit 500
                 """, new { q }, ct);
-        }).WithSummary("الحسابات (بحث بالاسم أو رقم الجوال)");
+        }).WithSummary("الحسابات (بحث بالاسم أو البريد)");
 
         g.MapGet("/accounts/{id:guid}", async (Guid id, Db db, CancellationToken ct) =>
         {
@@ -125,14 +125,15 @@ public static class AdminEndpoints
         {
             var name = body.Name?.Trim() ?? "";
             if (name.Length is < 2 or > 120) return Invalid("name", "اكتب اسم الحساب");
-            if (!PhoneNumber.TryNormalize(body.OwnerPhone, out var phone)) return Invalid("ownerPhone", "رقم جوال سعودي صحيح يبدأ بـ 05");
+            if (!Credentials.TryNormalizeEmail(body.OwnerEmail, out var email)) return Invalid("ownerEmail", "بريد إلكتروني صحيح");
+            if (!Credentials.IsValidPassword(body.OwnerPassword)) return Invalid("ownerPassword", Credentials.PasswordRule);
             var plan = await db.SingleOrDefaultAsync<PlanDto>(
                 "select id, code, name, role, seats, daily_estimate_limit, duration_days, price_sar from identity.plans_catalog where id = @PlanId", new { body.PlanId }, ct);
             if (plan is null) return Invalid("planId", "اختر باقة");
             var seats = body.SeatsTotal ?? plan.Seats;
             if (seats is < 1 or > 100) return Invalid("seatsTotal", "عدد المقاعد بين 1 و100");
             var expires = body.ExpiresAt ?? DateOnly.FromDateTime(DateTime.Today).AddDays(plan.DurationDays);
-            if (await PhoneTaken(db, phone, null, ct)) return Taken();
+            if (await EmailTaken(db, email, null, ct)) return Taken();
 
             var adminId = http.User.PrincipalId();
             try
@@ -143,10 +144,10 @@ public static class AdminEndpoints
                         with a as (
                           insert into identity.accounts (name, role, plan_id, seats_total, expires_at, notes)
                           values (@name, @role, @planId, @seats, @expires, @notes) returning id)
-                        insert into identity.seats (account_id, phone, display_name, is_owner)
-                        select id, @phone, @ownerName, true from a returning account_id
-                        """, new { name, role = plan.Role, planId = plan.Id, seats, expires, notes = Clean(body.Notes), phone, ownerName = Clean(body.OwnerName) ?? name }, ct);
-                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, adminId, "admin.account.created", id.ToString(), http, new { name, plan = plan.Code, seats, expires, phone }, ct);
+                        insert into identity.seats (account_id, email, password_hash, display_name, is_owner)
+                        select id, @email, crypt(@password, gen_salt('bf', 10)), @ownerName, true from a returning account_id
+                        """, new { name, role = plan.Role, planId = plan.Id, seats, expires, notes = Clean(body.Notes), email, password = body.OwnerPassword, ownerName = Clean(body.OwnerName) ?? name }, ct);
+                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, adminId, "admin.account.created", id.ToString(), http, new { name, plan = plan.Code, seats, expires, email }, ct);
                     return id;
                 }, ct);
                 return Results.Ok(new { id });
@@ -184,8 +185,9 @@ public static class AdminEndpoints
         // ---- seats ---------------------------------------------------------------------------------
         g.MapPost("/accounts/{id:guid}/seats", async (Guid id, AddSeat body, HttpContext http, Db db, CancellationToken ct) =>
         {
-            if (!PhoneNumber.TryNormalize(body.Phone, out var phone)) return Invalid("phone", "رقم جوال سعودي صحيح يبدأ بـ 05");
-            if (await PhoneTaken(db, phone, null, ct)) return Taken();
+            if (!Credentials.TryNormalizeEmail(body.Email, out var email)) return Invalid("email", "بريد إلكتروني صحيح");
+            if (!Credentials.IsValidPassword(body.Password)) return Invalid("password", Credentials.PasswordRule);
+            if (await EmailTaken(db, email, null, ct)) return Taken();
             try
             {
                 return await db.InTransactionAsync(async tx =>
@@ -194,11 +196,11 @@ public static class AdminEndpoints
                     if (!await LockAccount(tx, id, ct)) return Results.NotFound();
                     var room = await tx.SingleOrDefaultAsync<(int Total, int Used)>(
                         "select seats_total, (select count(*)::int from identity.seats where account_id = @id) from identity.accounts where id = @id", new { id }, ct);
-                    if (room.Used >= room.Total) return Invalid("phone", $"كل المقاعد مستخدمة ({room.Total})، زد عدد المقاعد في الحساب أولاً");
+                    if (room.Used >= room.Total) return Invalid("email", $"كل المقاعد مستخدمة ({room.Total})، زد عدد المقاعد في الحساب أولاً");
                     var seatId = await tx.ScalarAsync<Guid>(
-                        "insert into identity.seats (account_id, phone, display_name) values (@id, @phone, @name) returning id",
-                        new { id, phone, name = Clean(body.DisplayName) }, ct);
-                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.added", seatId.ToString(), http, new { account = id, phone }, ct);
+                        "insert into identity.seats (account_id, email, password_hash, display_name) values (@id, @email, " + Credentials.HashSql + ", @name) returning id",
+                        new { id, email, password = body.Password, name = Clean(body.DisplayName) }, ct);
+                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.added", seatId.ToString(), http, new { account = id, email }, ct);
                     return Results.Ok(new { id = seatId });
                 }, ct);
             }
@@ -207,37 +209,42 @@ public static class AdminEndpoints
 
         g.MapPut("/seats/{id:guid}", async (Guid id, UpdateSeat body, HttpContext http, Db db, CancellationToken ct) =>
         {
-            if (!PhoneNumber.TryNormalize(body.Phone, out var phone)) return Invalid("phone", "رقم جوال سعودي صحيح يبدأ بـ 05");
+            if (!Credentials.TryNormalizeEmail(body.Email, out var email)) return Invalid("email", "بريد إلكتروني صحيح");
             if (body.Status is not (SeatStatuses.Active or SeatStatuses.Disabled)) return Invalid("status", "الحالة: فعّال أو معطّل");
-            var old = await db.SingleOrDefaultAsync<(string Phone, string Status)>("select phone, status from identity.seats where id = @id", new { id }, ct);
+            var newPassword = string.IsNullOrEmpty(body.Password) ? null : body.Password;
+            if (newPassword is not null && !Credentials.IsValidPassword(newPassword)) return Invalid("password", Credentials.PasswordRule);
+            var old = await db.SingleOrDefaultAsync<(string Email, string Status)>("select email, status from identity.seats where id = @id", new { id }, ct);
             if (old == default) return Results.NotFound();
-            if (phone != old.Phone && await PhoneTaken(db, phone, id, ct)) return Taken();
+            var moved = email != old.Email;
+            if (moved && await EmailTaken(db, email, id, ct)) return Taken();
             try
             {
                 await db.InTransactionAsync(async tx =>
                 {
-                    await tx.ExecuteAsync("update identity.seats set phone = @phone, display_name = @name, status = @Status where id = @id",
-                        new { id, phone, name = Clean(body.DisplayName), body.Status }, ct);
-                    // a new number or a disabled seat must not keep the old device signed in
-                    if (phone != old.Phone || body.Status == SeatStatuses.Disabled) await RevokeSeat(tx, id, ct);
-                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), phone != old.Phone ? "admin.seat.phone_changed" : "admin.seat.updated",
-                        id.ToString(), http, new { from = old.Phone, to = phone, body.Status }, ct);
+                    await tx.ExecuteAsync("update identity.seats set email = @email, display_name = @name, status = @Status where id = @id",
+                        new { id, email, name = Clean(body.DisplayName), body.Status }, ct);
+                    if (newPassword is not null)
+                        await tx.ExecuteAsync("update identity.seats set password_hash = " + Credentials.HashSql + " where id = @id", new { id, password = newPassword }, ct);
+                    // a new email, a new password or a disabled seat must not keep the old device signed in
+                    if (moved || newPassword is not null || body.Status == SeatStatuses.Disabled) await RevokeSeat(tx, id, ct);
+                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), moved ? "admin.seat.email_changed" : "admin.seat.updated",
+                        id.ToString(), http, new { from = old.Email, to = email, body.Status, passwordReset = newPassword is not null }, ct);
                     return 0;
                 }, ct);
             }
             catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation) { return Taken(); }
             return Results.NoContent();
-        }).WithSummary("تعديل مقعد: نقل الاشتراك لرقم آخر، الاسم، التعطيل");
+        }).WithSummary("تعديل مقعد: نقل الاشتراك لبريد آخر، الاسم، كلمة المرور، التعطيل");
 
         g.MapDelete("/seats/{id:guid}", (Guid id, HttpContext http, Db db, CancellationToken ct) =>
             db.InTransactionAsync(async tx =>
             {
-                var seat = await tx.SingleOrDefaultAsync<(string Phone, bool IsOwner)>("select phone, is_owner from identity.seats where id = @id for update", new { id }, ct);
+                var seat = await tx.SingleOrDefaultAsync<(string Email, bool IsOwner)>("select email, is_owner from identity.seats where id = @id for update", new { id }, ct);
                 if (seat == default) return Results.NotFound();
-                if (seat.IsOwner) return Results.Problem(title: "لا يُحذف مقعد المالك، انقل الاشتراك لرقم آخر بدلاً من ذلك", statusCode: 409, type: "owner_seat");
+                if (seat.IsOwner) return Results.Problem(title: "لا يُحذف مقعد المالك، انقل الاشتراك لبريد آخر بدلاً من ذلك", statusCode: 409, type: "owner_seat");
                 await RevokeSeat(tx, id, ct);
                 await tx.ExecuteAsync("delete from identity.seats where id = @id", new { id }, ct);
-                await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.deleted", id.ToString(), http, new { seat.Phone }, ct);
+                await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.deleted", id.ToString(), http, new { seat.Email }, ct);
                 return Results.NoContent();
             }, ct))
          .WithSummary("حذف مقعد (غير المالك)");
@@ -255,7 +262,7 @@ public static class AdminEndpoints
         g.MapGet("/legal-questions", (int? limit, Db db, CancellationToken ct) =>
             db.QueryAsync<LegalQuestionDto>("""
                 select q.id, q.created_at, q.question, q.answer, q.provider, cardinality(q.cited) as cited, q.duration_ms,
-                       replace(s.phone, '+966', '0') as phone, a.name as account_name, q.search
+                       s.email, a.name as account_name, q.search
                 from app.legal_questions q
                 left join identity.seats s on s.id = q.seat_id left join identity.accounts a on a.id = s.account_id
                 order by q.created_at desc limit @limit
@@ -265,15 +272,16 @@ public static class AdminEndpoints
 
     // ---- helpers -----------------------------------------------------------------------------------
     private static IResult Taken() =>
-        Results.Problem(title: "هذا الرقم مسجل في اشتراك آخر", statusCode: 409, type: "phone_taken");
+        Results.Problem(title: "هذا البريد مسجل في اشتراك آخر", statusCode: 409, type: "email_taken");
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    private static Task<bool> PhoneTaken(Db db, string phone, Guid? exceptSeat, CancellationToken ct) =>
+    /// <summary>One email signs in as one principal: taken by another seat or by an admin.</summary>
+    private static Task<bool> EmailTaken(Db db, string email, Guid? exceptSeat, CancellationToken ct) =>
         db.ScalarAsync<bool>("""
-            select exists (select 1 from identity.seats where phone = @phone and id is distinct from @exceptSeat)
-                or exists (select 1 from identity.admins where phone = @phone)
-            """, new { phone, exceptSeat }, ct);
+            select exists (select 1 from identity.seats where email = @email and id is distinct from @exceptSeat)
+                or exists (select 1 from identity.admins where email = @email)
+            """, new { email, exceptSeat }, ct);
 
     /// <summary>Locks the account row until the transaction ends; false when there is no such account. Its own statement:
     /// a statement that waited for the lock keeps its old snapshot, so counts must be read by the next one.</summary>

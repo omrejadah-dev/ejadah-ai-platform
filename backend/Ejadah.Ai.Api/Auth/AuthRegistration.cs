@@ -16,7 +16,6 @@ public static class AuthRegistration
 
         services.AddSingleton(opt);
         services.AddSingleton<TokenService>();
-        services.AddEjadahSms(config, env);
 
         // validation parameters come from the one TokenService in DI (same signing key as the tokens it issues)
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

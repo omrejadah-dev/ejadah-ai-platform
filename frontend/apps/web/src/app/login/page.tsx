@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@platform/ui-kit";
 import { api, ApiError, type Me } from "@/lib/api";
@@ -27,20 +27,15 @@ function Message({ children, tone }: { children: string; tone: "danger" | "info"
   );
 }
 
-const fmtPhone = (d: string) => [d.slice(0, 2), d.slice(2, 5), d.slice(5, 9)].filter(Boolean).join(" ");
-
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [digits, setDigits] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [resendLeft, setResendLeft] = useState(0);
-  const boxes = useRef<Array<HTMLInputElement | null>>([]);
-  const ready = digits.length === 9 && digits.startsWith("5");
+  const ready = /^\S+@\S+\.\S+$/.test(email.trim()) && password.length > 0;
   const reason = params.get("reason");
   const returnTo = safeReturnPath(params.get("from"));
 
@@ -50,59 +45,18 @@ function LoginInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const ticking = resendLeft > 0;
-  useEffect(() => {
-    if (!ticking) return;
-    const id = window.setInterval(() => setResendLeft((n) => (n <= 1 ? 0 : n - 1)), 1000);
-    return () => window.clearInterval(id);
-  }, [ticking]);
-
-  async function sendCode(e?: FormEvent) {
-    e?.preventDefault();
+  async function signIn(e: FormEvent) {
+    e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const r = await api<{ devCode: string | null }>("/api/auth/otp", { method: "POST", json: { phone: digits } });
-      setDevCode(r.devCode);
-      setOtp(["", "", "", "", "", ""]);
-      setStep("otp");
-      setResendLeft(30);
-      setTimeout(() => boxes.current[0]?.focus(), 60);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "تعذّر الاتصال بالخادم");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function verify(code: string) {
-    setError(null);
-    setLoading(true);
-    try {
-      await api<Me>("/api/auth/verify", { method: "POST", json: { phone: digits, code } });
+      await api<Me>("/api/auth/login", { method: "POST", json: { email: email.trim(), password } });
       router.replace(returnTo);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "تعذّر الاتصال بالخادم");
-      setOtp(["", "", "", "", "", ""]);
-      boxes.current[0]?.focus();
+      setPassword("");
       setLoading(false);
     }
-  }
-
-  function typeOtp(i: number, raw: string) {
-    const d = raw.replace(/\D/g, "");
-    if (d.length > 1) {
-      const all = d.slice(0, 6).split("");
-      setOtp([...all, ...Array(6 - all.length).fill("")]);
-      if (all.length === 6) void verify(all.join(""));
-      else boxes.current[all.length]?.focus();
-      return;
-    }
-    const next = [...otp];
-    next[i] = d;
-    setOtp(next);
-    if (d && i < 5) boxes.current[i + 1]?.focus();
-    if (next.every(Boolean)) void verify(next.join(""));
   }
 
   return (
@@ -122,61 +76,32 @@ function LoginInner() {
         <section className="relative w-full max-w-[440px]">
           {/* logo removed until Ejadah sends the correct one (it goes back here, above the card) */}
           <div className="rounded-[22px] bg-surface p-7 text-text shadow-[0_40px_80px_-30px_rgba(0,0,0,.55)] sm:p-8">
-            {step === "phone" ? (
-              <div key="phone" className="animate-[login-rise_0.35s_ease]">
-                <h2 className="text-[22px] font-extrabold text-heading">تسجيل الدخول</h2>
-                <p className="mb-6 mt-1 text-sm leading-relaxed text-text-2">أدخل رقم الجوال المرتبط باشتراكك، وسنرسل لك رمز تحقق.</p>
-                {reason && REASON_TEXT[reason] && !error ? <Message tone="info">{REASON_TEXT[reason]}</Message> : null}
-                {error ? <Message tone="danger">{error}</Message> : null}
-                <form onSubmit={sendCode}>
-                  <label htmlFor="mobile" className="mb-2 block text-[13px] font-bold text-text-2">رقم الجوال</label>
-                  <div className="relative mb-5" dir="ltr">
-                    <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-1.5 border-r border-border-md px-3.5 text-sm font-bold text-text-2">
-                      +966
-                    </span>
-                    <input id="mobile" type="tel" inputMode="numeric" autoComplete="tel" placeholder="5X XXX XXXX" autoFocus dir="ltr"
-                      value={fmtPhone(digits)}
-                      onChange={(e) => { setError(null); setDigits(e.target.value.replace(/\D/g, "").replace(/^0/, "").slice(0, 9)); }}
-                      className={cn(input, "pl-[78px] text-left tracking-[0.04em]", error && inputBad)} />
-                  </div>
-                  <button type="submit" className={primary} disabled={loading || !ready}>
-                    {loading ? "جارٍ الإرسال…" : "إرسال رمز التحقق"}
-                    {!loading ? <i className="ti ti-arrow-left text-lg" aria-hidden /> : null}
+            <div className="animate-[login-rise_0.35s_ease]">
+              <h2 className="text-[22px] font-extrabold text-heading">تسجيل الدخول</h2>
+              <p className="mb-6 mt-1 text-sm leading-relaxed text-text-2">أدخل البريد الإلكتروني وكلمة المرور المرتبطين باشتراكك.</p>
+              {reason && REASON_TEXT[reason] && !error ? <Message tone="info">{REASON_TEXT[reason]}</Message> : null}
+              {error ? <Message tone="danger">{error}</Message> : null}
+              <form onSubmit={signIn}>
+                <label htmlFor="email" className="mb-2 block text-[13px] font-bold text-text-2">البريد الإلكتروني</label>
+                <input id="email" type="email" inputMode="email" autoComplete="username" placeholder="name@company.com" autoFocus dir="ltr"
+                  value={email} onChange={(e) => { setError(null); setEmail(e.target.value); }}
+                  className={cn(input, "mb-4 text-left", error && inputBad)} />
+                <label htmlFor="password" className="mb-2 block text-[13px] font-bold text-text-2">كلمة المرور</label>
+                <div className="relative mb-5" dir="ltr">
+                  <input id="password" type={show ? "text" : "password"} autoComplete="current-password" dir="ltr"
+                    value={password} onChange={(e) => { setError(null); setPassword(e.target.value); }}
+                    className={cn(input, "pr-12 text-left", error && inputBad)} />
+                  <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"} aria-pressed={show}
+                    className="absolute inset-y-0 right-0 grid w-12 place-items-center text-text-3 hover:text-heading">
+                    <i className={cn("ti text-lg", show ? "ti-eye-off" : "ti-eye")} aria-hidden />
                   </button>
-                </form>
-              </div>
-            ) : (
-              <div key="otp" className="animate-[login-rise_0.35s_ease]">
-                <button type="button" onClick={() => { setStep("phone"); setError(null); }}
-                  className="mb-4 inline-flex items-center gap-1 text-xs font-bold text-gold-d hover:text-heading">
-                  <i className="ti ti-arrow-right" aria-hidden /> تغيير الرقم
-                </button>
-                <h2 className="text-[22px] font-extrabold text-heading">أدخل رمز التحقق</h2>
-                <p className="mb-6 mt-1 text-sm leading-relaxed text-text-2">
-                  أرسلنا 6 أرقام إلى <b dir="ltr" className="text-text">+966 {fmtPhone(digits)}</b>
-                </p>
-                {devCode ? <Message tone="info">{`وضع التطوير: الرمز ${devCode}`}</Message> : null}
-                {error ? <Message tone="danger">{error}</Message> : null}
-                <div className="mb-5 grid grid-cols-6 gap-2" dir="ltr">
-                  {otp.map((v, i) => (
-                    <input key={i} ref={(el) => { boxes.current[i] = el; }} inputMode="numeric" maxLength={6} value={v} aria-label={`الرقم ${i + 1}`}
-                      onChange={(e) => typeOtp(i, e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Backspace" && !otp[i] && i > 0) boxes.current[i - 1]?.focus(); }}
-                      className={cn(input, "h-[58px] px-0 text-center text-[24px] font-extrabold", v && "border-ink bg-surface", error && inputBad)} />
-                  ))}
                 </div>
-                <button type="button" className={primary} disabled={loading || otp.some((x) => !x)} onClick={() => verify(otp.join(""))}>
-                  {loading ? "جارٍ التحقق…" : "دخول"}
+                <button type="submit" className={primary} disabled={loading || !ready}>
+                  {loading ? "جارٍ الدخول…" : "دخول"}
+                  {!loading ? <i className="ti ti-arrow-left text-lg" aria-hidden /> : null}
                 </button>
-                <div className="mt-5 text-center text-[13px] text-text-2">
-                  {resendLeft > 0 ? (
-                    <span>إعادة الإرسال بعد <b dir="ltr">{resendLeft}</b> ث</span>
-                  ) : (
-                    <button type="button" className="font-bold text-gold-d hover:text-heading disabled:opacity-50" disabled={loading} onClick={() => sendCode()}>إعادة إرسال الرمز</button>
-                  )}
-                </div>
-              </div>
-            )}
+              </form>
+            </div>
           </div>
           <p className="mt-5 text-center text-xs text-white/55">
             لا يوجد لديك اشتراك؟ تواصل مع إجادة لتفعيل حسابك.

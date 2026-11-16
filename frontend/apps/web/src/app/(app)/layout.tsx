@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn, QueryErrorState, Spinner } from "@platform/ui-kit";
 import { api, ApiError, can, type Me } from "@/lib/api";
 import { ROLE_LABEL } from "@/lib/ui";
-import { localPhone } from "@/lib/format";
 import { NAV, ROUTES } from "@/lib/routes";
 import { MeContext } from "@/providers/MeProvider";
 import { PageTitle } from "@/components/Breadcrumbs";
@@ -64,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // an estimate result (/estimate/<id>) belongs under "تسعيراتي"
   const section = /^\/estimate\/(?!new)/.test(pathname) ? "/my-estimates" : pathname;
   const isActive = (href: string) => section === href || (href !== "/" && section.startsWith(href));
-  const displayName = u.name ?? u.phone;
+  const displayName = u.name ?? u.email;
   // first letter of the first two words, skipping "ال" (عمر باموسى → عب، مدير النظام → من)
   const initials = (u.name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.replace(/^ال(?=.)/, "")[0]).join("") || "؟";
 
@@ -119,7 +118,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <div id={menuId} role="menu" aria-label={displayName} className="absolute end-0 z-40 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
                     <div role="presentation" className="border-b border-border px-4 py-3">
                       <div className="text-sm font-bold text-heading">{displayName}</div>
-                      <div className="text-xs text-text-3" dir="ltr">{localPhone(u.phone)}</div>
+                      <div className="truncate text-xs text-text-3" dir="ltr">{u.email}</div>
                     </div>
                     <button ref={menuFirst} type="button" role="menuitem" onClick={logout} className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-semibold text-danger-text hover:bg-row-hover">
                       <i className="ti ti-logout" aria-hidden /> خروج

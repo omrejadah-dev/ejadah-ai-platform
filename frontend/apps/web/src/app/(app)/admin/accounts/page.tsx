@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppModal, Badge, Button, Card, FilterChips, FormGroup, Input, Select, Table, TBody, Td, Th, THead, Tr, Textarea } from "@platform/ui-kit";
 import { api, ApiError } from "@/lib/api";
 import { addDays, daysUntil, STATUS_LABEL, statusTone, type Account, type Plan } from "@/lib/admin";
-import { dateOnly, dateTime, fmt, localPhone } from "@/lib/format";
+import { dateOnly, dateTime, fmt } from "@/lib/format";
 import { ListSkeleton, QueryView } from "@/components/QueryView";
 import { ROLE_LABEL } from "@/lib/ui";
 
@@ -29,7 +29,7 @@ function AccountsInner() {
   const rows = useMemo(() => {
     const term = q.trim();
     return (accounts.data ?? []).filter((a) => {
-      if (term && !a.name.includes(term) && !localPhone(a.ownerPhone).includes(term)) return false;
+      if (term && !a.name.includes(term) && !(a.ownerEmail ?? "").includes(term.toLowerCase())) return false;
       if (filter === "active") return a.status === "active";
       if (filter === "expiring") return a.status === "active" && daysUntil(a.expiresAt) <= 30;
       if (filter === "inactive") return a.status !== "active";
@@ -40,7 +40,7 @@ function AccountsInner() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Input className="w-full sm:w-72" placeholder="ابحث بالاسم أو رقم الجوال" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="w-full sm:w-72" placeholder="ابحث بالاسم أو البريد" value={q} onChange={(e) => setQ(e.target.value)} />
         {/* clicking the active chip again clears it, which is "الكل" */}
         <FilterChips options={[...FILTERS]} active={filter} onChange={(k) => setFilter((k as Filter | null) ?? "all")} />
         <Button variant="primary" className="ms-auto" onClick={() => setCreating(true)}><i className="ti ti-plus" aria-hidden /> حساب جديد</Button>
@@ -59,7 +59,7 @@ function AccountsInner() {
                     <Tr key={a.id}>
                       <Td>
                         <Link href={`/admin/accounts/${a.id}`} className="font-bold text-ink hover:underline">{a.name}</Link>
-                        <div className="text-xs text-text-3" dir="ltr">{localPhone(a.ownerPhone)}</div>
+                        <div className="text-xs text-text-3" dir="ltr">{a.ownerEmail ?? "—"}</div>
                       </Td>
                       <Td>{a.planName ?? ROLE_LABEL[a.role]}</Td>
                       <Td>{a.seatsUsed} / {a.seatsTotal}</Td>
@@ -91,7 +91,7 @@ function CreateAccountModal({ onClose }: { onClose: () => void }) {
   const plan = plans.data?.find((p) => p.id === planId);
   // only an office has a manager and staff: owner name and seat count are asked for offices; others take the plan's seats
   const isOffice = plan?.role === "office";
-  const [f, setF] = useState({ name: "", ownerPhone: "", ownerName: "", seats: "", expires: "", notes: "" });
+  const [f, setF] = useState({ name: "", ownerEmail: "", ownerPassword: "", ownerName: "", seats: "", expires: "", notes: "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const today = new Date().toISOString().slice(0, 10);
 
@@ -99,7 +99,7 @@ function CreateAccountModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => api<{ id: string }>("/api/admin/accounts", {
       method: "POST",
       json: {
-        name: f.name, planId, ownerPhone: f.ownerPhone, ownerName: isOffice ? f.ownerName || null : f.name, notes: f.notes || null,
+        name: f.name, planId, ownerEmail: f.ownerEmail.trim(), ownerPassword: f.ownerPassword, ownerName: isOffice ? f.ownerName || null : f.name, notes: f.notes || null,
         seatsTotal: isOffice && f.seats ? Number(f.seats) : null, expiresAt: f.expires || null,
       },
     }),
@@ -114,7 +114,7 @@ function CreateAccountModal({ onClose }: { onClose: () => void }) {
     <AppModal open title="حساب جديد" onClose={onClose} wide
       footer={<>
         <Button onClick={onClose}>إلغاء</Button>
-        <Button variant="primary" disabled={!f.name || !f.ownerPhone || !planId || create.isPending} loading={create.isPending} onClick={() => create.mutate()}>إنشاء الحساب</Button>
+        <Button variant="primary" disabled={!f.name || !f.ownerEmail || f.ownerPassword.length < 8 || !planId || create.isPending} loading={create.isPending} onClick={() => create.mutate()}>إنشاء الحساب</Button>
       </>}>
       <div className="grid gap-4 sm:grid-cols-2">
         <FormGroup label="اسم الحساب" htmlFor="name" required hint="اسم الوسيط أو المكتب أو الجهة" error={err?.errors?.name?.[0]}>
@@ -126,9 +126,12 @@ function CreateAccountModal({ onClose }: { onClose: () => void }) {
             {plans.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
         </FormGroup>
-        <FormGroup label={isOffice ? "جوال المالك" : "رقم الجوال"} htmlFor="phone" required hint={isOffice ? "يدخل به أول مرة، ويدير مقاعد المكتب" : "يدخل به إلى المنصة"}
-          error={err?.errors?.ownerPhone?.[0] ?? (err?.type === "phone_taken" ? err.message : undefined)}>
-          <Input id="phone" value={f.ownerPhone} onChange={set("ownerPhone")} placeholder="05XXXXXXXX" dir="ltr" inputMode="tel" />
+        <FormGroup label={isOffice ? "بريد المالك" : "البريد الإلكتروني"} htmlFor="email" required hint={isOffice ? "يدخل به، ويدير مقاعد المكتب" : "يدخل به إلى المنصة"}
+          error={err?.errors?.ownerEmail?.[0] ?? (err?.type === "email_taken" ? err.message : undefined)}>
+          <Input id="email" type="email" value={f.ownerEmail} onChange={set("ownerEmail")} placeholder="name@company.com" dir="ltr" autoComplete="off" />
+        </FormGroup>
+        <FormGroup label="كلمة المرور" htmlFor="password" required hint="8 أحرف على الأقل، أرسلها له مع البريد" error={err?.errors?.ownerPassword?.[0]}>
+          <Input id="password" value={f.ownerPassword} onChange={set("ownerPassword")} dir="ltr" autoComplete="new-password" />
         </FormGroup>
         {isOffice ? (
           <>
@@ -147,7 +150,7 @@ function CreateAccountModal({ onClose }: { onClose: () => void }) {
           <Textarea id="notes" value={f.notes} onChange={set("notes")} rows={2} />
         </FormGroup>
       </div>
-      {err && !err.errors && err.type !== "phone_taken" ? <p className="mt-3 text-sm font-bold text-danger-text">{err.message}</p> : null}
+      {err && !err.errors && err.type !== "email_taken" ? <p className="mt-3 text-sm font-bold text-danger-text">{err.message}</p> : null}
     </AppModal>
   );
 }

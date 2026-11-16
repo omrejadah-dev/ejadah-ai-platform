@@ -28,7 +28,7 @@ export default function AdminLogsPage() {
                   return (
                     <Tr key={r.id} className="cursor-pointer align-top" onClick={toggle}>
                       <Td className="whitespace-nowrap">{dateTime(r.createdAt)}</Td>
-                      <Td>{r.accountName ?? "—"}<div className="text-xs text-text-3" dir="ltr">{r.phone ?? ""}</div></Td>
+                      <Td>{r.accountName ?? "—"}<div className="text-xs text-text-3" dir="ltr">{r.email ?? ""}</div></Td>
                       <Td className="max-w-xl">
                         {/* the row is clickable for the mouse; this button makes it reachable by keyboard and screen readers */}
                         <button type="button" aria-expanded={isOpen} aria-controls={`answer-${r.id}`}

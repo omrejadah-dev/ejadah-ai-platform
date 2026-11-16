@@ -38,9 +38,6 @@ services:
       ConnectionStrings__Default: ${DB_CONNECTION:-Host=postgres;Port=5432;Username=ejadah;Password=${POSTGRES_PASSWORD};Database=ejadah_ai;Maximum Pool Size=40}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY (64+ chars)}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      Sms__EchoCodeInResponse: ${SMS_ECHO:-false}
-      Sms__Provider: ${SMS_PROVIDER:-}            # a real provider; the API refuses to start without one outside Development
-      Sms__AllowDummy: ${SMS_ALLOW_DUMMY:-false}  # local rehearsal only: codes go to the API log
       Cors__Origins__0: ${PUBLIC_ORIGIN:-https://ai.ejadah.example}
       Embedder__Url: http://embedder:8000/   # legal search by meaning; keyword search if it is down
     extra_hosts:

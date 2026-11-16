@@ -16,8 +16,8 @@ export class ApiError extends Error {
 
 type Problem = { title?: string; type?: string; status?: number; errors?: Record<string, string[]> };
 
-/** The sign-in calls themselves: a 401 from them is the answer (wrong code, no refresh cookie), not an expired session. */
-const NO_REFRESH = ["/api/auth/refresh", "/api/auth/otp", "/api/auth/verify"];
+/** The sign-in calls themselves: a 401 from them is the answer (wrong password, no refresh cookie), not an expired session. */
+const NO_REFRESH = ["/api/auth/refresh", "/api/auth/login"];
 const refreshes = (path: string) => !NO_REFRESH.some((p) => path === p || path.startsWith(p + "?"));
 
 let refreshing: Promise<boolean> | null = null;
@@ -74,7 +74,7 @@ export type Me = {
   id: string;
   accountId: string | null;
   role: "broker" | "office" | "investor" | "developer" | "admin";
-  phone: string;
+  email: string;
   name: string | null;
   isOwner: boolean;
   capabilities: string[];

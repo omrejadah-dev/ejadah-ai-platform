@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 # API load test (50 concurrent users, 15 s per endpoint) with autocannon. Run from the repo root in Git Bash.
-#   bash tools/loadtest/api.sh http://127.0.0.1:5020 0500000001
-# Logs in with a dev seat (Sms:EchoCodeInResponse must be on), then hits the main read endpoints and the pricing POST.
+#   bash tools/loadtest/api.sh http://127.0.0.1:5020 broker@ejadah.test ejadah-test
+# Signs in with a dev seat (db/seed/dev.sql), then hits the main read endpoints and the pricing POST.
 # The pricing POST saves real valuations: it lifts the seat's plan limit for the run, restores it, and deletes the rows it made.
 set -euo pipefail
-B=${1:-http://127.0.0.1:5020}; PHONE=${2:-0500000001}
+B=${1:-http://127.0.0.1:5020}; EMAIL=${2:-broker@ejadah.test}; PASSWORD=${3:-ejadah-test}
 export MSYS_NO_PATHCONV=1
 PG_CONTAINER=${PG_CONTAINER:-ejadah-ai-postgres}
 P="docker exec $PG_CONTAINER psql -U ejadah -d ejadah_ai -q -tA"
 JAR=$(mktemp)
 
-code=$(curl -s -X POST "$B/api/auth/otp" -H 'Content-Type: application/json' -d "{\"phone\":\"$PHONE\"}" | sed 's/.*"devCode":"\([0-9]*\)".*/\1/')
-curl -s -o /dev/null -c "$JAR" -X POST "$B/api/auth/verify" -H 'Content-Type: application/json' -d "{\"phone\":\"$PHONE\",\"code\":\"$code\"}"
+curl -s -o /dev/null -c "$JAR" -X POST "$B/api/auth/login" -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}"
 C="ejd_access=$(awk '/ejd_access/ {print $7}' "$JAR")"
 JEDDAH=$($P -c "select id from market.cities where name_norm='جده' and region='مكة المكرمة'")
 DID=$($P -c "select id from market.districts where city_id=$JEDDAH and name='الصفا' limit 1")
@@ -21,7 +20,7 @@ run "meta"              "$B/api/meta"
 run "city map"          "$B/api/cities/$JEDDAH/map?type=land"
 run "district summary"  "$B/api/districts/$DID/summary?type=land"
 
-PLAN=$($P -c "select a.plan_id from identity.seats s join identity.accounts a on a.id=s.account_id where s.phone like '%${PHONE:1}' limit 1")
+PLAN=$($P -c "select a.plan_id from identity.seats s join identity.accounts a on a.id=s.account_id where s.email = '$EMAIL' limit 1")
 LIMIT=$($P -c "select daily_estimate_limit from identity.plans_catalog where id=$PLAN")
 START=$($P -c "select now()")
 $P -c "update identity.plans_catalog set daily_estimate_limit = 1000000 where id = $PLAN"

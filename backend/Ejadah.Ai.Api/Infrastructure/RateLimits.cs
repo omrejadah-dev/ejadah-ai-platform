@@ -10,8 +10,7 @@ namespace Ejadah.Ai.Api.Infrastructure;
 /// production and development differ only in configuration. nginx applies its own coarser per-IP limit in front.</summary>
 public static class RateLimits
 {
-    public const string Otp = "otp";            // SMS codes per client IP: protects the SMS bill
-    public const string Verify = "verify";      // code checks per client IP: on top of the 3-wrong-codes lock per phone
+    public const string Login = "login";        // sign-in attempts per client IP: on top of the 5-wrong-passwords pause per email
     public const string Estimate = "estimate";  // pricing requests per seat per minute: on top of the daily plan limit
     public const string Legal = "legal";        // legal questions per seat per day (legal assistant)
 
@@ -47,13 +46,9 @@ public static class RateLimits
                     PermitLimit = Get("PerIpPerMinute", 600), Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
                 }));
 
-            o.AddPolicy(Otp, http => RateLimitPartition.GetFixedWindowLimiter(ClientIp(http), _ => new FixedWindowRateLimiterOptions
+            o.AddPolicy(Login, http => RateLimitPartition.GetFixedWindowLimiter(ClientIp(http), _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = Get("OtpPerIpPer10Min", 10), Window = TimeSpan.FromMinutes(10), QueueLimit = 0,
-            }));
-            o.AddPolicy(Verify, http => RateLimitPartition.GetFixedWindowLimiter(ClientIp(http), _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = Get("VerifyPerIpPer10Min", 30), Window = TimeSpan.FromMinutes(10), QueueLimit = 0,
+                PermitLimit = Get("LoginPerIpPer10Min", 30), Window = TimeSpan.FromMinutes(10), QueueLimit = 0,
             }));
             o.AddPolicy(Estimate, http => RateLimitPartition.GetTokenBucketLimiter(Seat(http), _ => new TokenBucketRateLimiterOptions
             {

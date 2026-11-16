@@ -17,7 +17,7 @@ public sealed class JwtOptions
     public string RefreshCookie { get; set; } = "ejd_refresh";
 }
 
-public sealed record Principal(string Kind, Guid Id, Guid? AccountId, string Role, string Phone, string? Name, bool IsOwner, IReadOnlyList<string> Capabilities);
+public sealed record Principal(string Kind, Guid Id, Guid? AccountId, string Role, string Email, string? Name, bool IsOwner, IReadOnlyList<string> Capabilities);
 
 public sealed class TokenService(JwtOptions opt)
 {
@@ -32,7 +32,7 @@ public sealed class TokenService(JwtOptions opt)
             ["kind"] = p.Kind,
             ["sid"] = sessionId.ToString(),
             ["role"] = p.Role,
-            ["phone"] = p.Phone,
+            ["email"] = p.Email,
             ["owner"] = p.IsOwner,
             ["cap"] = p.Capabilities.ToArray(),
         };
@@ -58,7 +58,6 @@ public sealed class TokenService(JwtOptions opt)
 
     public static string NewRefreshToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     public static string Sha256(string s) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s))).ToLowerInvariant();
-    public static string NewOtpCode() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 }
 
 public static class ClaimsExtensions

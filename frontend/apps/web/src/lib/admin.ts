@@ -11,15 +11,15 @@ export type Overview = {
 export type Plan = { id: number; code: string; name: string; role: Me["role"]; seats: number; dailyEstimateLimit: number; durationDays: number; priceSar: number | null };
 export type Account = {
   id: string; name: string; role: Me["role"]; planId: number | null; planName: string | null; seatsTotal: number; seatsUsed: number;
-  status: AccountStatus; startsAt: string; expiresAt: string; createdAt: string; ownerPhone: string | null;
+  status: AccountStatus; startsAt: string; expiresAt: string; createdAt: string; ownerEmail: string | null;
   lastSeenAt: string | null; estimates30d: number; legal30d: number; notes: string | null;
 };
 export type Seat = {
-  id: string; phone: string; displayName: string | null; isOwner: boolean; status: "active" | "disabled"; createdAt: string;
+  id: string; email: string; displayName: string | null; isOwner: boolean; status: "active" | "disabled"; createdAt: string;
   lastSeenAt: string | null; online: boolean; ip: string | null; userAgent: string | null; estimates30d: number; legal30d: number;
 };
 export type AccountDetail = { account: Account; seats: Seat[] };
-export type LegalQuestionRow = { id: string; createdAt: string; question: string; answer: string; provider: string; cited: number; durationMs: number | null; phone: string | null; accountName: string | null; search: "meaning" | "keyword" | null };
+export type LegalQuestionRow = { id: string; createdAt: string; question: string; answer: string; provider: string; cited: number; durationMs: number | null; email: string | null; accountName: string | null; search: "meaning" | "keyword" | null };
 export type AdjustmentRule = { id: number; typeGroup: "villa" | "apartment" | "building"; factor: string; labelAr: string; kind: "per_year" | "per_floor" | "flag"; pct: number; maxAbsPct: number | null; enabled: boolean; updatedAt: string };
 export type PricingSetting = { key: string; value: number; labelAr: string; updatedAt: string };
 

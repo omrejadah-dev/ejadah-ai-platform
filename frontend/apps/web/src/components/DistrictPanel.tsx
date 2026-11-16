@@ -17,8 +17,7 @@ type Summary = {
 };
 
 /** Panel and trend chart share this query, so one request serves both. */
-const useDistrictSummary = (districtId: number, type: MapType) =>
-  useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
+const useDistrictSummary = (districtId: number, type: MapType) => useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
 
 export function DistrictPanel({ districtId, type, onClose }: { districtId: number; type: MapType; onClose: () => void }) {
   const q = useDistrictSummary(districtId, type);

@@ -8,7 +8,7 @@ On Git Bash run the scripts with `bash db/...`; they set `MSYS_NO_PATHCONV` them
 | `migrations/NNN_*.sql` | Schema: schemas, tables, indexes, empty materialised views, constraints, and the small product data every environment needs (type mapping, plans on sale, adjustment rules, pricing parameters) | once each, in order, by `db/migrate.sh` |
 | `functions/*.sql` | Repeatable definitions (`CREATE OR REPLACE`): the pricing engine `market.estimate_price` and its helpers | every `db/migrate.sh` run, after the migrations |
 | `reload/` | Data: the 4.6M deals, cities/districts, geo files, the legal library, materialised-view refresh | `db/reload/run.sh`, when data is (re)loaded |
-| `seed/dev.sql` | Test accounts and the test admin (`0500000001`–`0500000005`, admin `0500000000`) | only `db/migrate.sh --dev` |
+| `seed/dev.sql` | Test accounts and the test admin (`broker@ejadah.test` … `admin@ejadah.test`, password `ejadah-test`) | only `db/migrate.sh --dev` |
 
 ## Fresh database
 
@@ -19,7 +19,8 @@ bash db/reload/run.sh           # ~6 min: raw load, transform, geo, legal, refre
 ```
 
 Production has no test admin: insert the first real one by hand,
-`INSERT INTO identity.admins (phone, name) VALUES ('+9665XXXXXXXX', '...');`.
+`INSERT INTO identity.admins (email, name, password_hash) VALUES ('name@company.com', '...', crypt('<password>', gen_salt('bf', 10)));`
+(run it in psql so the password is not kept in a file; the email is stored lower-case).
 
 ## Rules
 

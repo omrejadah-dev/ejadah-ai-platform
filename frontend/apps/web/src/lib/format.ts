@@ -19,5 +19,3 @@ export const dateOnly = (iso: string | null | undefined) =>
 const DAY_NAME = new Intl.DateTimeFormat(LOCALE, { weekday: "long", day: "numeric", month: "long" });
 export const dayName = (ymd: string) => DAY_NAME.format(new Date(ymd + "T00:00:00"));
 
-/** +9665XXXXXXXX → 05XXXXXXXX, the way people read and type it. */
-export const localPhone = (p: string | null | undefined) => (p ? p.replace(/^\+966/, "0") : "—");

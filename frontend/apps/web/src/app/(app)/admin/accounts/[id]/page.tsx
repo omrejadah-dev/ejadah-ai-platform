@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppModal, Badge, Button, Card, CardBody, CardHeader, confirmAction, FormGroup, Input, Note, Select, Table, TBody, Td, Th, THead, Tr, Textarea, useToast } from "@platform/ui-kit";
 import { api, ApiError } from "@/lib/api";
 import { addDays, daysUntil, deviceLabel, STATUS_LABEL, statusTone, type AccountDetail, type Plan, type Seat } from "@/lib/admin";
-import { dateOnly, dateTime, fmt, localPhone } from "@/lib/format";
+import { dateOnly, dateTime, fmt } from "@/lib/format";
 import { QueryView } from "@/components/QueryView";
 import { ROLE_LABEL } from "@/lib/ui";
 
@@ -46,7 +46,7 @@ function AccountView({ detail }: { detail: AccountDetail }) {
         </CardHeader>
         <div className="overflow-x-auto">
           <Table>
-            <THead><Tr><Th>الجوال</Th><Th>الاسم</Th><Th>الحالة</Th><Th>الجهاز الحالي</Th><Th>آخر نشاط</Th><Th>تسعيرات · أسئلة (30 يوماً)</Th><Th /></Tr></THead>
+            <THead><Tr><Th>البريد</Th><Th>الاسم</Th><Th>الحالة</Th><Th>الجهاز الحالي</Th><Th>آخر نشاط</Th><Th>تسعيرات · أسئلة (30 يوماً)</Th><Th /></Tr></THead>
             <TBody>
               {seats.map((s) => <SeatRow key={s.id} seat={s} accountId={a.id} onEdit={() => setSeatModal(s)} />)}
             </TBody>
@@ -143,7 +143,7 @@ function SeatRow({ seat: s, accountId, onEdit }: { seat: Seat; accountId: string
 
   return (
     <Tr>
-      <Td dir="ltr" className="text-end font-bold">{localPhone(s.phone)}</Td>
+      <Td dir="ltr" className="text-end font-bold">{s.email}</Td>
       <Td>{s.displayName ?? "—"} {s.isOwner ? <Badge tone="primary">المالك</Badge> : null}</Td>
       <Td>{s.status === "active" ? <Badge tone="success">فعّال</Badge> : <Badge tone="danger">معطّل</Badge>}</Td>
       <Td>
@@ -159,7 +159,7 @@ function SeatRow({ seat: s, accountId, onEdit }: { seat: Seat; accountId: string
           {!s.isOwner ? (
             <Button size="sm" variant="dangerOutline" disabled={remove.isPending}
               onClick={async () => {
-                if (await confirmAction({ title: "حذف المقعد", message: `حذف المقعد ${localPhone(s.phone)}؟`, confirmLabel: "حذف", danger: true })) remove.mutate();
+                if (await confirmAction({ title: "حذف المقعد", message: `حذف المقعد ${s.email}؟`, confirmLabel: "حذف", danger: true })) remove.mutate();
               }}>حذف</Button>
           ) : null}
         </div>
@@ -171,15 +171,17 @@ function SeatRow({ seat: s, accountId, onEdit }: { seat: Seat; accountId: string
 function SeatModal({ accountId, seat, onClose }: { accountId: string; seat: Seat | null; onClose: () => void }) {
   const qc = useQueryClient();
   const { showToast } = useToast();
-  const [phone, setPhone] = useState(seat ? localPhone(seat.phone) : "");
+  const [email, setEmail] = useState(seat?.email ?? "");
+  const [password, setPassword] = useState("");   // new seat: required; existing seat: only to reset it
   const [name, setName] = useState(seat?.displayName ?? "");
   const [status, setStatus] = useState(seat?.status ?? "active");
-  const phoneChanged = seat && phone.replace(/\D/g, "") !== localPhone(seat.phone);
+  const emailChanged = seat && email.trim().toLowerCase() !== seat.email;
+  const passwordOk = seat ? password === "" || password.length >= 8 : password.length >= 8;
 
   const save = useMutation({
     mutationFn: () => seat
-      ? api(`/api/admin/seats/${seat.id}`, { method: "PUT", json: { phone, displayName: name || null, status } })
-      : api(`/api/admin/accounts/${accountId}/seats`, { method: "POST", json: { phone, displayName: name || null } }),
+      ? api(`/api/admin/seats/${seat.id}`, { method: "PUT", json: { email: email.trim(), displayName: name || null, status, password: password || null } })
+      : api(`/api/admin/accounts/${accountId}/seats`, { method: "POST", json: { email: email.trim(), password, displayName: name || null } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin"] });
       showToast(seat ? "تم حفظ المقعد" : "تمت إضافة المقعد", "success");
@@ -192,12 +194,16 @@ function SeatModal({ accountId, seat, onClose }: { accountId: string; seat: Seat
     <AppModal open title={seat ? "تعديل المقعد" : "إضافة مقعد"} onClose={onClose}
       footer={<>
         <Button onClick={onClose}>إلغاء</Button>
-        <Button variant="primary" disabled={!phone || save.isPending} loading={save.isPending} onClick={() => save.mutate()}>حفظ</Button>
+        <Button variant="primary" disabled={!email || !passwordOk || save.isPending} loading={save.isPending} onClick={() => save.mutate()}>حفظ</Button>
       </>}>
       <div className="space-y-4">
-        <FormGroup label="رقم الجوال" htmlFor="seat-phone" required error={err?.errors?.phone?.[0] ?? (err?.type === "phone_taken" ? err.message : undefined)}
-          hint={phoneChanged ? "نقل الاشتراك لهذا الرقم: يخرج الجهاز الحالي فوراً، ويدخل الرقم الجديد برمز تحقق" : undefined}>
-          <Input id="seat-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XXXXXXXX" dir="ltr" inputMode="tel" />
+        <FormGroup label="البريد الإلكتروني" htmlFor="seat-email" required error={err?.errors?.email?.[0] ?? (err?.type === "email_taken" ? err.message : undefined)}
+          hint={emailChanged ? "نقل الاشتراك لهذا البريد: يخرج الجهاز الحالي فوراً" : undefined}>
+          <Input id="seat-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr" autoComplete="off" />
+        </FormGroup>
+        <FormGroup label={seat ? "كلمة مرور جديدة" : "كلمة المرور"} htmlFor="seat-password" required={!seat} error={err?.errors?.password?.[0]}
+          hint={seat ? "اتركها فارغة لتبقى كما هي. إن غيّرتها يخرج الجهاز الحالي فوراً" : "8 أحرف على الأقل، أرسلها له مع البريد"}>
+          <Input id="seat-password" value={password} onChange={(e) => setPassword(e.target.value)} dir="ltr" autoComplete="new-password" />
         </FormGroup>
         <FormGroup label="الاسم" htmlFor="seat-name" hint="اختياري">
           <Input id="seat-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
@@ -210,7 +216,7 @@ function SeatModal({ accountId, seat, onClose }: { accountId: string; seat: Seat
             </Select>
           </FormGroup>
         ) : null}
-        {err && !err.errors && err.type !== "phone_taken" ? <p className="text-sm font-bold text-danger-text">{err.message}</p> : null}
+        {err && !err.errors && err.type !== "email_taken" ? <p className="text-sm font-bold text-danger-text">{err.message}</p> : null}
       </div>
     </AppModal>
   );
