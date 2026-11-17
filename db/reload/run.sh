@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # db/reload/run.sh — load (or re-load) the data into a migrated database (see db/README.md).
 #
-#   db/reload/run.sh                 every step: raw transform geo legal refresh
+#   db/reload/run.sh                 every step: raw transform rules geo legal refresh
 #   db/reload/run.sh geo refresh     only the named steps, in the order given
 #
 #   raw        data/consolidated/all_deals.csv -> market.deals_raw                         (~20 s)
 #   transform  cities, districts (upsert, ids kept), aliases, cleaned market.deals (swap)  (~4-6 min)
+#   rules      deal-vs-deal market rules on market.deals, re-runnable (02b_rules.sql)    (~30 s)
 #   geo        data/geo/*.csv -> region/district shapes, district neighbours               (seconds)
 #   legal      data/legal/*.csv -> laws, articles (upsert, ids kept), vectors               (seconds)
 #   refresh    every materialised view, in dependency order (db/reload/refresh.sql)        (~1 min)
@@ -31,9 +32,9 @@ else
 fi
 PSQL+=(-X -v ON_ERROR_STOP=1 -v datadir="$DATA_DIR")
 
-declare -A FILE=([raw]=01_raw.sql [transform]=02_transform.sql [geo]=03_geo.sql [legal]=04_legal.sql [refresh]=refresh.sql)
-STEPS=("$@"); [[ ${#STEPS[@]} -eq 0 ]] && STEPS=(raw transform geo legal refresh)
-for s in "${STEPS[@]}"; do [[ -n "${FILE[$s]:-}" ]] || { echo "unknown step: $s (raw transform geo legal refresh)" >&2; exit 2; }; done
+declare -A FILE=([raw]=01_raw.sql [transform]=02_transform.sql [rules]=02b_rules.sql [geo]=03_geo.sql [legal]=04_legal.sql [refresh]=refresh.sql)
+STEPS=("$@"); [[ ${#STEPS[@]} -eq 0 ]] && STEPS=(raw transform rules geo legal refresh)
+for s in "${STEPS[@]}"; do [[ -n "${FILE[$s]:-}" ]] || { echo "unknown step: $s (raw transform rules geo legal refresh)" >&2; exit 2; }; done
 
 for s in "${STEPS[@]}"; do
   echo "== $s (${FILE[$s]})"
