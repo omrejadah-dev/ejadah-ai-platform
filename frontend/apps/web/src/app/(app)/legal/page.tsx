@@ -34,6 +34,19 @@ export default function LegalPage() {
     onError: (e: Error) => setTurns((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, error: e.message || "تعذّر الحصول على إجابة" } : x))),
   });
 
+  // trash button in «آخر أسئلتك»: the row disappears at once, and comes back if the server says no
+  const hide = useMutation({
+    mutationFn: (id: string) => api<void>(`/api/legal/history/${id}`, { method: "DELETE" }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["legal-history"] });
+      const before = qc.getQueryData<LegalHistory[]>(["legal-history"]);
+      qc.setQueryData<LegalHistory[]>(["legal-history"], (list) => list?.filter((h) => h.id !== id));
+      return { before };
+    },
+    onError: (_e, _id, ctx) => { if (ctx?.before) qc.setQueryData(["legal-history"], ctx.before); },
+    onSettled: () => { void qc.invalidateQueries({ queryKey: ["legal-history"] }); },
+  });
+
   function send(text: string) {
     const q = text.trim();
     if (q.length < 3 || ask.isPending) return;
@@ -123,8 +136,16 @@ export default function LegalPage() {
               <CardHeader><span className="font-bold text-heading">آخر أسئلتك</span></CardHeader>
               <CardBody className="space-y-1 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {history.data.map((h) => (
-                  <button key={h.id} onClick={() => setInput(h.question)}
-                    className="block w-full truncate rounded-lg px-2 py-1.5 text-start text-sm text-text-2 hover:bg-row-hover">{h.question}</button>
+                  <div key={h.id} className="group flex items-center gap-1 rounded-lg hover:bg-row-hover">
+                    <button onClick={() => setInput(h.question)}
+                      className="min-w-0 flex-1 truncate px-2 py-1.5 text-start text-sm text-text-2">{h.question}</button>
+                    {/* always visible on touch screens; on a mouse it shows on row hover or keyboard focus */}
+                    <button type="button" onClick={() => hide.mutate(h.id)} disabled={hide.isPending && hide.variables === h.id}
+                      aria-label={`حذف «${h.question}» من آخر أسئلتك`} title="حذف"
+                      className="grid size-7 shrink-0 place-items-center rounded-md text-text-3 transition hover:bg-danger-bg hover:text-danger-text focus-visible:opacity-100 disabled:opacity-40 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
+                      <i className="ti ti-trash text-[15px]" aria-hidden />
+                    </button>
+                  </div>
                 ))}
               </CardBody>
             </Card>

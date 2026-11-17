@@ -76,8 +76,24 @@ public static class LegalEndpoints
          .WithSummary("الأنظمة المحمّلة في المكتبة");
 
         g.MapGet("/history", (int? limit, HttpContext http, Db db, CancellationToken ct) => db.QueryAsync<HistoryDto>(
-            "select id, created_at, question, answer from app.legal_questions where seat_id = @seatId or admin_id = @adminId order by created_at desc limit @limit",
+            """
+            select id, created_at, question, answer from app.legal_questions
+            where (seat_id = @seatId or admin_id = @adminId) and hidden_at is null
+            order by created_at desc limit @limit
+            """,
             new { seatId = http.User.SeatId(), adminId = http.User.AdminId(), limit = Math.Clamp(limit ?? 10, 1, 50) }, ct))
          .WithSummary("آخر أسئلتي");
+
+        // hidden from the user's history only (023); the admin log keeps it for quality review
+        g.MapDelete("/history/{id:guid}", async (Guid id, HttpContext http, Db db, CancellationToken ct) =>
+        {
+            var n = await db.ExecuteAsync(
+                """
+                update app.legal_questions set hidden_at = now()
+                where id = @id and (seat_id = @seatId or admin_id = @adminId) and hidden_at is null
+                """, new { id, seatId = http.User.SeatId(), adminId = http.User.AdminId() }, ct);
+            return n == 0 ? Results.NotFound() : Results.NoContent();
+        })
+         .WithSummary("حذف سؤال من «آخر أسئلتي» (يبقى في سجل المدير)");
     }
 }
