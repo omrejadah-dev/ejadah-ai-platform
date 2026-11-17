@@ -10,7 +10,8 @@ obj/
 *.user
 .env
 .env.*
-!.env.example
+# the root .env.example holds a real key on this machine, so it is never uploaded; infra's template stays in the repo
+!infra/.env.example
 pgdata/
 __pycache__/
 frontend/apps/web/.next/
