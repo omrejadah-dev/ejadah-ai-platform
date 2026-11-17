@@ -28,8 +28,9 @@ export default function HomePage() {
       <MarketMap />
 
       {FEATURES.estimate ? (
-      <>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      // wide screens: the four types (2×2) beside the latest estimates, instead of two full-width strips
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
         {TYPES.map((t) => (
           <Link key={t.type} href={`/estimate/new?type=${t.type}`}
             className="group rounded-2xl border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-gold hover:shadow-[0_12px_28px_-18px_rgba(16,43,78,.5)]">
@@ -40,7 +41,7 @@ export default function HomePage() {
         ))}
       </div>
 
-      <Card>
+      <Card className="h-full">
         <CardHeader className="flex items-center justify-between">
           <span className="font-bold text-heading">آخر تسعيراتك</span>
           <Link href="/my-estimates" className="text-xs font-bold text-gold-d hover:text-heading">عرض الكل</Link>
@@ -69,7 +70,7 @@ export default function HomePage() {
           </QueryView>
         </CardBody>
       </Card>
-      </>
+      </div>
       ) : null}
     </div>
   );

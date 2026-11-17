@@ -11,8 +11,8 @@ import { breaks, tooltipHtml, valueFor, type Metric, type Period } from "@/compo
 import { busiestCityId, CityPicker, type PickerRegion } from "@/components/CityPicker";
 import { MapLegend, Seg, YearPlayer } from "@/components/MapControls";
 
-/** Map height: shorter on phones. */
-const MAP_HEIGHT = "h-[440px] sm:h-[600px]";
+/** Map height: shorter on phones; on wide screens it grows with the window so the whole card fits the first screen (from 105rem = 1680px the bars above it are one row). */
+const MAP_HEIGHT = "h-[440px] sm:h-[600px] xl:h-[clamp(600px,calc(100dvh-300px),820px)] min-[105rem]:h-[clamp(600px,calc(100dvh-245px),860px)]";
 
 const DistrictMap = dynamic(() => import("@/components/DistrictMap").then((m) => m.DistrictMap), {
   ssr: false,
@@ -93,18 +93,25 @@ export function MarketMap() {
 
   return (
     <Card>
-      <div className="flex flex-wrap items-center gap-2 rounded-t-[var(--radius-lg)] border-b border-border bg-surface-2 px-4 py-3">
-        <span className="me-2 font-bold text-heading">خريطة الأسعار</span>
-        <CityPicker variant="toolbar" idPrefix="map" regions={regions.data ?? []} cityId={cityId}
-          onChange={(id, regionChanged) => { setCityId(id); setSelected(null); if (regionChanged) setPeriod("recent"); }} />
+      {/* very wide screens (from 1680px, where both fit on one line): filters and the year slider share one bar (the slider alone would span 1400px) */}
+      <div className="rounded-t-[var(--radius-lg)] min-[105rem]:flex min-[105rem]:flex-wrap min-[105rem]:items-center min-[105rem]:border-b min-[105rem]:border-border min-[105rem]:bg-surface-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-t-[var(--radius-lg)] border-b border-border bg-surface-2 px-4 py-3 min-[105rem]:shrink-0 min-[105rem]:border-b-0">
+        <span className="w-full font-bold text-heading sm:me-2 sm:w-auto">خريطة الأسعار</span>
+        {/* phones: region and city share one row half and half; from sm they sit inline like the rest of the bar */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:contents">
+          <CityPicker variant="toolbar" idPrefix="map" regions={regions.data ?? []} cityId={cityId}
+            onChange={(id, regionChanged) => { setCityId(id); setSelected(null); if (regionChanged) setPeriod("recent"); }} />
+        </div>
         <Seg label="نوع العقار" value={type} onChange={setType} options={(Object.keys(MAP_TYPE_LABEL) as MapType[]).map((t) => [t, MAP_TYPE_LABEL[t]] as [MapType, string])} />
         <Seg label="المقياس" value={metric} onChange={setMetric} options={[["ppm", "سعر المتر"], ["n12", "عدد الصفقات"]]} />
       </div>
 
       <YearPlayer first={first} last={last} period={period} playing={playing} onToggle={togglePlay}
-        onPeriod={(p) => { setPlaying(false); setPeriod(p); }} />
+        onPeriod={(p) => { setPlaying(false); setPeriod(p); }} className="min-[105rem]:min-w-[320px] min-[105rem]:flex-1 min-[105rem]:border-b-0" />
+      </div>
 
-      <div className={cn("grid items-start gap-0", selected && "lg:grid-cols-[1fr_380px]")}>
+      {/* district selected (lg+): map beside the panel, the trend chart across the full width under both, so the two columns end together */}
+      <div className={cn("grid items-start gap-0", selected && "lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]")}>
         <div className="p-3">
         <div className="relative isolate">
           <DistrictMap data={map.data} valueOf={valueOf} scale={scale} tooltip={tooltip} selectedId={selected?.id ?? null} onSelect={setSelected}
@@ -127,14 +134,14 @@ export function MarketMap() {
             </div>
           ) : null}
         </div>
+        </div>
         {selected ? (
-          <div className="mt-3">
+          <div className="px-3 pb-3 lg:col-span-2 lg:row-start-2 lg:border-t lg:border-border lg:pt-3">
             <DistrictTrend districtId={selected.id} type={type} highlightYear={period === "recent" ? undefined : period} />
           </div>
         ) : null}
-        </div>
         {selected ? (
-          <aside className="border-t border-border p-4 lg:border-s lg:border-t-0">
+          <aside className="border-t border-border p-4 lg:col-start-2 lg:row-start-1 lg:self-stretch lg:border-s lg:border-t-0">
             <DistrictPanel districtId={selected.id} type={type} onClose={() => setSelected(null)} />
           </aside>
         ) : null}

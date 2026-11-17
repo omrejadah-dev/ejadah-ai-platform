@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card, CardBody, CardHeader, cn, Note, Spinner, Textarea } from "@platform/ui-kit";
+import { Badge, Button, Card, CardBody, CardHeader, cn, Note, Spinner } from "@platform/ui-kit";
 import { api, type LegalAnswer, type LegalHistory, type LegalLaw, type LegalSource } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import { CenteredSpinner, EmptyLine, QueryView } from "@/components/QueryView";
@@ -47,7 +47,7 @@ export default function LegalPage() {
   const totalArticles = laws.data?.reduce((s, l) => s + l.articles, 0) ?? 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="space-y-4">
       <div>
         <p className="text-sm text-text-2">
           اسأل عن الأنظمة العقارية السعودية، والإجابة من نصوص الأنظمة الرسمية مع ذكر النظام ورقم المادة
@@ -55,48 +55,58 @@ export default function LegalPage() {
         </p>
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1fr_300px]">
+      {/* wide screens: chat and side panel share one viewport-tall row; the chat text stays in a readable centred column,
+          the messages scroll inside the card (question box pinned at its bottom) and the library fills the side panel */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* conversation */}
-        <Card className="flex min-h-[560px] flex-col">
-          <div className="flex-1 space-y-6 p-5">
-            {turns.length === 0 ? (
-              <div className="grid place-items-center gap-4 py-10 text-center">
-                <div className="grid size-14 place-items-center rounded-2xl bg-gold-soft text-2xl text-gold-d"><i className="ti ti-scale" aria-hidden /></div>
-                <div>
-                  <div className="font-bold text-heading">بماذا أساعدك؟</div>
-                  <p className="text-sm text-text-3">جرّب أحد هذه الأسئلة أو اكتب سؤالك</p>
+        <Card className="flex min-h-[560px] flex-col lg:h-[calc(100dvh-11rem)] lg:min-h-[520px]">
+          <div className="flex min-h-0 flex-1 flex-col lg:overflow-y-auto">
+            <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-5">
+              {turns.length === 0 ? (
+                <div className="my-auto grid place-items-center gap-4 py-10 text-center">
+                  <div className="grid size-14 place-items-center rounded-2xl bg-gold-soft text-2xl text-gold-d"><i className="ti ti-scale" aria-hidden /></div>
+                  <div>
+                    <div className="font-bold text-heading">بماذا أساعدك؟</div>
+                    <p className="text-sm text-text-3">جرّب أحد هذه الأسئلة أو اكتب سؤالك</p>
+                  </div>
+                  <div className="flex max-w-xl flex-wrap justify-center gap-2">
+                    {SUGGESTIONS.map((s) => (
+                      <button key={s} onClick={() => send(s)}
+                        className="rounded-full border border-border-md bg-surface px-3 py-1.5 text-sm text-text-2 hover:border-gold hover:text-heading">{s}</button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex max-w-xl flex-wrap justify-center gap-2">
-                  {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => send(s)}
-                      className="rounded-full border border-border-md bg-surface px-3 py-1.5 text-sm text-text-2 hover:border-gold hover:text-heading">{s}</button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              turns.map((t, i) => <Exchange key={i} turn={t} />)
-            )}
-            <div ref={bottom} />
+              ) : (
+                turns.map((t, i) => <Exchange key={i} turn={t} />)
+              )}
+              <div ref={bottom} />
+            </div>
           </div>
 
           <form className="border-t border-border p-4" onSubmit={(e) => { e.preventDefault(); send(input); }}>
-            <div className="flex items-end gap-2">
-              <Textarea rows={2} maxLength={500} value={input} placeholder="اكتب سؤالك… مثل: متى يستحق الوسيط العمولة؟" className="flex-1 resize-none"
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }} />
-              <Button type="submit" variant="primary" disabled={ask.isPending || input.trim().length < 3}>
-                {ask.isPending ? <Spinner /> : <><i className="ti ti-send" aria-hidden /> إرسال</>}
-              </Button>
+            <div className="mx-auto max-w-3xl">
+              {/* one rectangle: the question box and the send button inside the same frame; the box starts one line high and
+                  grows with the text (Shift+Enter for a new line) up to a few lines */}
+              <div className="flex items-center gap-2 rounded-xl border border-border-md bg-surface p-1.5 ps-4 transition focus-within:border-gold focus-within:shadow-[0_0_0_4px_color-mix(in_srgb,var(--gold)_18%,transparent)]">
+                <textarea rows={1} maxLength={500} value={input} placeholder="اكتب سؤالك… مثل: متى يستحق الوسيط العمولة؟" aria-label="سؤالك"
+                  className="max-h-32 min-h-10 flex-1 resize-none bg-transparent py-2 text-sm leading-relaxed text-text outline-none [field-sizing:content] placeholder:text-text-3"
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }} />
+                {/* phones: the icon alone, so the question gets the room */}
+                <Button type="submit" variant="primary" className="shrink-0 max-sm:!w-[38px] max-sm:!px-0" aria-label="إرسال" disabled={ask.isPending || input.trim().length < 3}>
+                  {ask.isPending ? <Spinner /> : <><i className="ti ti-send" aria-hidden /><span className="hidden sm:inline">إرسال</span></>}
+                </Button>
+              </div>
+              <p className="mt-2 text-[11px] text-text-3">إجابات استرشادية من نصوص الأنظمة، وليست استشارة قانونية.</p>
             </div>
-            <p className="mt-2 text-[11px] text-text-3">إجابات استرشادية من نصوص الأنظمة، وليست استشارة قانونية.</p>
           </form>
         </Card>
 
         {/* library and recent questions */}
-        <div className="space-y-4">
-          <Card>
+        <div className="space-y-4 lg:flex lg:h-[calc(100dvh-11rem)] lg:min-h-[520px] lg:flex-col lg:gap-4 lg:space-y-0">
+          <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <CardHeader><span className="font-bold text-heading">المكتبة</span><span className="text-xs text-text-3">المصدر الرسمي</span></CardHeader>
-            <CardBody className="max-h-[340px] space-y-1 overflow-y-auto p-2">
+            <CardBody className="max-h-[340px] space-y-1 overflow-y-auto p-2 lg:max-h-none lg:min-h-0 lg:flex-1">
               <QueryView q={laws} errorLine="تعذّر تحميل المكتبة" loading={<CenteredSpinner className="py-6" />} empty={<EmptyLine className="py-6">لا توجد أنظمة بعد</EmptyLine>}>
                 {(list) => list.map((l) => (
                   <a key={l.id} href={l.sourceUrl} target="_blank" rel="noreferrer"
@@ -109,9 +119,9 @@ export default function LegalPage() {
             </CardBody>
           </Card>
           {history.data?.length ? (
-            <Card>
+            <Card className="lg:flex lg:max-h-[45%] lg:min-h-0 lg:shrink-0 lg:flex-col">
               <CardHeader><span className="font-bold text-heading">آخر أسئلتك</span></CardHeader>
-              <CardBody className="space-y-1 p-2">
+              <CardBody className="space-y-1 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {history.data.map((h) => (
                   <button key={h.id} onClick={() => setInput(h.question)}
                     className="block w-full truncate rounded-lg px-2 py-1.5 text-start text-sm text-text-2 hover:bg-row-hover">{h.question}</button>

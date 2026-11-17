@@ -19,11 +19,12 @@ export default function MarketPage() {
   const hist = useQuery({ queryKey: ["history", district?.id, type], queryFn: () => districtHistory(district!.id, type), enabled: !!district });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    // Phones/tablets: filters on top, chart below. xl: filters in a side column, the chart takes the rest of the width.
+    <div className="space-y-4 xl:grid xl:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start xl:gap-6 xl:space-y-0">
       <Card>
         <QueryView q={cities} errorLine="تعذّر تحميل المدن">
           {() => (
-            <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-1 xl:gap-3">
               <CityPicker regions={regions} cityId={cityId} idPrefix="market" onChange={(id) => { setCityId(id); setDistrict(null); }} />
               <FormGroup label="النوع" htmlFor="market-type">
                 <Select id="market-type" value={type} onChange={(e) => setType(e.target.value as PropertyType)}>
@@ -46,7 +47,11 @@ export default function MarketPage() {
             </QueryView>
           </CardBody>
         </Card>
-      ) : <p className="text-sm text-text-3">اختر حياً لعرض تاريخ أسعاره عبر السنوات.</p>}
+      ) : (
+        <div className="flex items-center rounded-[var(--radius-lg)] xl:min-h-[240px] xl:self-stretch xl:justify-center xl:border xl:border-dashed xl:border-border-md xl:bg-surface xl:p-6">
+          <p className="text-sm text-text-3">اختر حياً لعرض تاريخ أسعاره عبر السنوات.</p>
+        </div>
+      )}
     </div>
   );
 }

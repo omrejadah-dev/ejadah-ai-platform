@@ -21,9 +21,9 @@ export default function AdminOverviewPage() {
 /** Stat cards in their final layout while the numbers load. */
 function OverviewSkeleton() {
   return (
-    <div className="space-y-6" role="status" aria-label="جاري التحميل">
+    <div className="grid gap-6 min-[1800px]:grid-cols-7 min-[1800px]:gap-x-3" role="status" aria-label="جاري التحميل">
       {[4, 3].map((n, i) => (
-        <div key={i}>
+        <div key={i} className={n === 3 ? "min-[1800px]:col-span-3" : "min-[1800px]:col-span-4"}>
           <Skeleton className="mb-2 h-3.5 w-20" />
           <div className={cn("grid grid-cols-2 gap-3", n === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
             {Array.from({ length: n }, (_, k) => <Skeleton key={k} className="h-[118px] rounded-xl" />)}
@@ -40,22 +40,25 @@ function OverviewBody({ o }: { o: Overview }) {
 
   return (
     <div className="space-y-6">
-      <Section title="الحسابات">
-        <Stat icon="ti-building-store" label="حسابات فعّالة" value={o.accountsActive}
-          sub={`من ${fmt(totalAccounts)} حساب`} href="/admin/accounts?status=active" />
-        <Stat icon="ti-calendar-due" label="تنتهي خلال 30 يوماً" value={o.expiringIn30Days} accent={o.expiringIn30Days ? "amber" : "default"}
-          sub={o.expiringIn30Days ? "تحتاج تجديد قريباً" : "لا شيء قريب الانتهاء"} href="/admin/accounts?status=expiring" />
-        <Stat icon="ti-ban" label="موقوفة أو منتهية" value={inactive} accent={inactive ? "red" : "default"}
-          sub={`${fmt(o.accountsSuspended)} موقوف · ${fmt(o.accountsExpired)} منتهي`} href="/admin/accounts?status=inactive" />
-        <Stat icon="ti-users" label="المقاعد" value={o.seats}
-          sub={<><i className={cn("me-1 inline-block size-2 rounded-full align-middle", o.activeSessions ? "bg-success" : "bg-text-3")} />{fmt(o.activeSessions)} متصل الآن</>} />
-      </Section>
+      {/* one row of seven stats on wide screens: the two groups sit side by side with equal card widths */}
+      <div className="grid gap-6 min-[1800px]:grid-cols-7 min-[1800px]:gap-x-3">
+        <Section title="الحسابات">
+          <Stat icon="ti-building-store" label="حسابات فعّالة" value={o.accountsActive}
+            sub={`من ${fmt(totalAccounts)} حساب`} href="/admin/accounts?status=active" />
+          <Stat icon="ti-calendar-due" label="تنتهي خلال 30 يوماً" value={o.expiringIn30Days} accent={o.expiringIn30Days ? "amber" : "default"}
+            sub={o.expiringIn30Days ? "تحتاج تجديد قريباً" : "لا شيء قريب الانتهاء"} href="/admin/accounts?status=expiring" />
+          <Stat icon="ti-ban" label="موقوفة أو منتهية" value={inactive} accent={inactive ? "red" : "default"}
+            sub={`${fmt(o.accountsSuspended)} موقوف · ${fmt(o.accountsExpired)} منتهي`} href="/admin/accounts?status=inactive" />
+          <Stat icon="ti-users" label="المقاعد" value={o.seats}
+            sub={<><i className={cn("me-1 inline-block size-2 rounded-full align-middle", o.activeSessions ? "bg-success" : "bg-text-3")} />{fmt(o.activeSessions)} متصل الآن</>} />
+        </Section>
 
-      <Section title="الاستخدام" cols={3}>
-        <Stat icon="ti-calculator" label="تسعيرات اليوم" value={o.estimatesToday} sub={`${fmt(o.estimates7d)} في آخر 7 أيام`} />
-        <Stat icon="ti-scale" label="أسئلة قانونية اليوم" value={o.legalToday} sub={`${fmt(o.legal7d)} في آخر 7 أيام`} href="/admin/logs" />
-        <Stat icon="ti-sparkles" label="طلبات الذكاء الاصطناعي" value={o.aiCalls7d} sub="في آخر 7 أيام" />
-      </Section>
+        <Section title="الاستخدام" cols={3}>
+          <Stat icon="ti-calculator" label="تسعيرات اليوم" value={o.estimatesToday} sub={`${fmt(o.estimates7d)} في آخر 7 أيام`} />
+          <Stat icon="ti-scale" label="أسئلة قانونية اليوم" value={o.legalToday} sub={`${fmt(o.legal7d)} في آخر 7 أيام`} href="/admin/logs" />
+          <Stat icon="ti-sparkles" label="طلبات الذكاء الاصطناعي" value={o.aiCalls7d} sub="في آخر 7 أيام" />
+        </Section>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <DailyBars title="التسعيرات" unit="تسعيرة" days={o.days.map((d) => ({ day: d.day, n: d.estimates }))} />
@@ -67,7 +70,7 @@ function OverviewBody({ o }: { o: Overview }) {
 
 function Section({ title, cols = 4, children }: { title: string; cols?: 3 | 4; children: ReactNode }) {
   return (
-    <section>
+    <section className={cols === 3 ? "min-[1800px]:col-span-3" : "min-[1800px]:col-span-4"}>
       <h2 className="mb-2 text-sm font-bold text-text-2">{title}</h2>
       <div className={cn("grid grid-cols-2 gap-3", cols === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4")}>{children}</div>
     </section>
@@ -79,7 +82,7 @@ function Stat({ icon, label, value, sub, href, accent = "default" }: {
 }) {
   const body = (
     <StatCard accent={accent} className="h-full">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 min-[1800px]:min-h-10">
         <span className="text-[13px] font-bold text-text-2">{label}</span>
         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-soft text-gold-d"><i className={cn("ti text-lg", icon)} aria-hidden /></span>
       </div>
@@ -118,7 +121,7 @@ function DailyBars({ title, unit, days }: { title: string; unit: string; days: {
       </CardHeader>
       <CardBody>
         <div className="relative" dir="ltr">
-          <div className="flex h-48">
+          <div className="flex h-48 xl:h-60 2xl:h-64">
             {/* y axis */}
             <div className="flex w-7 flex-col justify-between pb-5 text-[10px] text-text-3">
               {ticks.map((t) => <span key={t} className="-translate-y-1/2 leading-none first:translate-y-0 last:translate-y-0">{fmt(t)}</span>)}
@@ -132,7 +135,7 @@ function DailyBars({ title, unit, days }: { title: string; unit: string; days: {
               <div className="absolute inset-0 flex">
                 {days.map((d, i) => (
                   <div key={d.day} className="flex h-full flex-1 cursor-default flex-col" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-                    <div className={cn("relative mx-auto flex w-full max-w-[22px] flex-1 items-end px-[1px] pb-0", hover === i && "rounded-t bg-row-hover")}>
+                    <div className={cn("relative mx-auto flex w-full max-w-[22px] flex-1 xl:max-w-[30px] items-end px-[1px] pb-0", hover === i && "rounded-t bg-row-hover")}>
                       <div className={cn("w-full rounded-t-[4px] transition-colors", hover === i ? "bg-gold-d" : "bg-ink")}
                         style={{ height: `${(d.n / max) * 100}%`, minHeight: d.n ? 3 : 0 }}>
                         {i === peakAt ? <span className="absolute -mt-4 w-[calc(100%-2px)] text-center text-[10px] font-bold text-heading">{fmt(d.n)}</span> : null}

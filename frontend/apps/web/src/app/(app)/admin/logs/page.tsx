@@ -20,7 +20,7 @@ export default function AdminLogsPage() {
         {(rows) => (
           <div className="overflow-x-auto">
             <Table>
-              <THead><Tr><Th>الوقت</Th><Th>من</Th><Th>السؤال</Th><Th>المواد</Th><Th>البحث</Th><Th>المصدر</Th><Th>الزمن</Th></Tr></THead>
+              <THead><Tr><Th>الوقت</Th><Th>من</Th><Th className="w-full min-w-56">السؤال</Th><Th>المواد</Th><Th>البحث</Th><Th>المصدر</Th><Th>الزمن</Th></Tr></THead>
               <TBody>
                 {rows.map((r) => {
                   const isOpen = open === r.id;
@@ -29,17 +29,17 @@ export default function AdminLogsPage() {
                     <Tr key={r.id} className="cursor-pointer align-top" onClick={toggle}>
                       <Td className="whitespace-nowrap">{dateTime(r.createdAt)}</Td>
                       <Td>{r.accountName ?? "—"}<div className="text-xs text-text-3" dir="ltr">{r.email ?? ""}</div></Td>
-                      <Td className="max-w-xl">
+                      <Td>
                         {/* the row is clickable for the mouse; this button makes it reachable by keyboard and screen readers */}
                         <button type="button" aria-expanded={isOpen} aria-controls={`answer-${r.id}`}
                           onClick={(e) => { e.stopPropagation(); toggle(); }}
                           className="text-start font-bold hover:underline">{r.question}</button>
-                        {isOpen ? <div id={`answer-${r.id}`} className="mt-2 whitespace-pre-wrap text-sm text-text-2">{r.answer}</div> : null}
+                        {isOpen ? <div id={`answer-${r.id}`} className="mt-2 max-w-[80ch] whitespace-pre-wrap text-sm text-text-2">{r.answer}</div> : null}
                       </Td>
                       <Td>{r.cited ? r.cited : <Badge tone="warning">لم يجد</Badge>}</Td>
-                      <Td>{r.search === "meaning" ? "بالمعنى" : r.search === "keyword" ? "بالكلمات" : "—"}</Td>
-                      <Td>{PROVIDER_LABEL[r.provider] ?? r.provider}</Td>
-                      <Td dir="ltr">{r.durationMs == null ? "—" : `${fmt(r.durationMs)} ms`}</Td>
+                      <Td className="whitespace-nowrap">{r.search === "meaning" ? "بالمعنى" : r.search === "keyword" ? "بالكلمات" : "—"}</Td>
+                      <Td className="whitespace-nowrap">{PROVIDER_LABEL[r.provider] ?? r.provider}</Td>
+                      <Td dir="ltr" className="whitespace-nowrap">{r.durationMs == null ? "—" : `${fmt(r.durationMs)} ms`}</Td>
                     </Tr>
                   );
                 })}

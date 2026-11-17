@@ -74,18 +74,21 @@ function PanelBody({ s, type, onClose }: { s: Summary; type: MapType; onClose: (
   );
 }
 
-/** Wide trend chart shown under the map for the selected district. */
+/** Wide trend chart shown under the map (and the panel, on wide screens) for the selected district.
+ *  TrendChart scales its text with its width, so the chart is capped and centred: at ~880px the axis labels stay near body size. */
 export function DistrictTrend({ districtId, type, highlightYear }: { districtId: number; type: MapType; highlightYear?: number }) {
   const q = useDistrictSummary(districtId, type);
   return (
     <QueryView q={q} errorLine="تعذّر تحميل اتجاه الأسعار" loading={<CenteredSpinner className="h-[260px] py-0" />}>
       {(s) => (
         <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm font-bold text-heading">اتجاه سعر المتر · {MAP_TYPE_LABEL[type]} · {s.name}</div>
-            <div className="text-[11px] text-text-3">وسيط سنوي من صفقات وزارة العدل</div>
+          <div className="mx-auto max-w-[880px]">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4">
+              <div className="text-sm font-bold text-heading">اتجاه سعر المتر · {MAP_TYPE_LABEL[type]} · {s.name}</div>
+              <div className="text-[11px] text-text-3">وسيط سنوي من صفقات وزارة العدل</div>
+            </div>
+            <TrendChart district={s.trend} height={240} highlightYear={highlightYear} />
           </div>
-          <TrendChart district={s.trend} height={240} highlightYear={highlightYear} />
         </div>
       )}
     </QueryView>

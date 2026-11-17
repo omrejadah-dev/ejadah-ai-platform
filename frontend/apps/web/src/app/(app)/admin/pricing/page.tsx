@@ -31,29 +31,35 @@ function PricingBody({ rules, settings }: { rules: AdjustmentRule[]; settings: P
   const groups = (["villa", "apartment", "building"] as const).map((t) => ({ type: t, rules: rules.filter((r) => r.typeGroup === t) }));
   return (
     <div className="space-y-4">
-      <Note tone="info">
-        هذه النسب تُطبَّق على سعر السوق المحسوب من الصفقات: سالبة تنقص السعر وموجبة تزيده. كلها 0% حتى تعتمد إجادة قيمها.
-        الأرض بلا نسب لأن العمر والمميزات لا تخصها.
-      </Note>
+      {/* wide screens: the explanation moves to the end column as a help panel (first on phones) */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Note tone="info" className="!mb-0 xl:order-last xl:self-start">
+          هذه النسب تُطبَّق على سعر السوق المحسوب من الصفقات: سالبة تنقص السعر وموجبة تزيده. كلها 0% حتى تعتمد إجادة قيمها.
+          الأرض بلا نسب لأن العمر والمميزات لا تخصها.
+        </Note>
 
-      <Card>
-        <CardHeader><span className="font-bold text-heading">الحدود</span></CardHeader>
-        <CardBody className="grid gap-3 sm:grid-cols-2">
-          {settings.map((s) => <SettingRow key={s.key + s.updatedAt} setting={s} />)}
-        </CardBody>
-      </Card>
-
-      {groups.map((g) => (
-        <Card key={g.type}>
-          <CardHeader><span className="font-bold text-heading">{TYPE_LABEL[g.type]}</span></CardHeader>
-          <div className="overflow-x-auto">
-            <Table>
-              <THead><Tr><Th>البند</Th><Th>النسبة %</Th><Th>الحد الأقصى %</Th><Th>مفعّل</Th><Th /></Tr></THead>
-              <TBody>{g.rules.map((r) => <RuleRow key={r.id + r.updatedAt} rule={r} />)}</TBody>
-            </Table>
-          </div>
+        <Card>
+          <CardHeader><span className="font-bold text-heading">الحدود</span></CardHeader>
+          <CardBody className="grid gap-3 sm:grid-cols-2">
+            {settings.map((s) => <SettingRow key={s.key + s.updatedAt} setting={s} />)}
+          </CardBody>
         </Card>
-      ))}
+      </div>
+
+      {/* the three types side by side once each table fits without scrolling */}
+      <div className="grid items-start gap-4 min-[1400px]:grid-cols-2 min-[1800px]:grid-cols-3">
+        {groups.map((g) => (
+          <Card key={g.type} className="min-w-0">
+            <CardHeader><span className="font-bold text-heading">{TYPE_LABEL[g.type]}</span></CardHeader>
+            <div className="overflow-x-auto">
+              <Table className="[&_td]:px-3 [&_th]:px-3">
+                <THead><Tr><Th>البند</Th><Th>النسبة %</Th><Th>الحد الأقصى %</Th><Th>مفعّل</Th><Th /></Tr></THead>
+                <TBody>{g.rules.map((r) => <RuleRow key={r.id + r.updatedAt} rule={r} />)}</TBody>
+              </Table>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -74,10 +80,10 @@ function RuleRow({ rule: r }: { rule: AdjustmentRule }) {
 
   return (
     <Tr>
-      <Td><span className="font-bold">{r.labelAr}</span><div className="text-xs text-text-3">{KIND_HINT[r.kind]}</div></Td>
-      <Td><div className="w-24"><Input type="number" step="0.1" min={-50} max={50} value={pct} onChange={(e) => setPct(e.target.value)} dir="ltr" aria-label={`${r.labelAr}: النسبة %`} /></div></Td>
+      <Td className="min-w-24"><span className="font-bold">{r.labelAr}</span><div className="text-xs text-text-3">{KIND_HINT[r.kind]}</div></Td>
+      <Td><div className="w-20"><Input type="number" step="0.1" min={-50} max={50} value={pct} onChange={(e) => setPct(e.target.value)} dir="ltr" aria-label={`${r.labelAr}: النسبة %`} /></div></Td>
       <Td>{r.kind === "flag" ? <span className="text-text-3">—</span> :
-        <div className="w-24"><Input type="number" step="1" min={0} max={50} value={cap} onChange={(e) => setCap(e.target.value)} dir="ltr" aria-label={`${r.labelAr}: الحد الأقصى %`} /></div>}</Td>
+        <div className="w-20"><Input type="number" step="1" min={0} max={50} value={cap} onChange={(e) => setCap(e.target.value)} dir="ltr" aria-label={`${r.labelAr}: الحد الأقصى %`} /></div>}</Td>
       <Td><input type="checkbox" className="size-4 accent-ink" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} aria-label={`${r.labelAr}: مفعّل`} /></Td>
       <Td><Button size="sm" variant="primary" disabled={!dirty || pct === "" || save.isPending} loading={save.isPending} onClick={() => save.mutate()}>حفظ</Button></Td>
     </Tr>

@@ -129,7 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="mx-auto max-w-6xl px-4 py-6 pb-24 md:pb-8">{children}</main>
+          <main className="mx-auto w-full max-w-[1600px] px-4 py-6 pb-24 md:px-6 md:pb-8 xl:px-8">{children}</main>
         </div>
 
         <nav style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface md:hidden">

@@ -40,7 +40,7 @@ function AccountsInner() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Input className="w-full sm:w-72" placeholder="ابحث بالاسم أو البريد" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="w-full sm:w-72 xl:w-96" placeholder="ابحث بالاسم أو البريد" value={q} onChange={(e) => setQ(e.target.value)} />
         {/* clicking the active chip again clears it, which is "الكل" */}
         <FilterChips options={[...FILTERS]} active={filter} onChange={(k) => setFilter((k as Filter | null) ?? "all")} />
         <Button variant="primary" className="ms-auto" onClick={() => setCreating(true)}><i className="ti ti-plus" aria-hidden /> حساب جديد</Button>

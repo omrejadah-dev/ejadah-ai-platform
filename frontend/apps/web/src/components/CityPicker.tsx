@@ -46,13 +46,13 @@ export function CityPicker({
   };
 
   const regionSelect = (
-    <Select id={`${idPrefix}-region`} className={variant === "toolbar" ? "!w-auto" : undefined} aria-label={variant === "toolbar" ? "المنطقة" : undefined}
+    <Select id={`${idPrefix}-region`} className={variant === "toolbar" ? "min-w-0 sm:!w-auto" : undefined} aria-label={variant === "toolbar" ? "المنطقة" : undefined}
       value={region?.region ?? ""} onChange={(e) => pickRegion(e.target.value)}>
       {regions.map((r) => <option key={r.region} value={r.region}>منطقة {r.region}</option>)}
     </Select>
   );
   const citySelect = (
-    <Select id={`${idPrefix}-city`} className={variant === "toolbar" ? "!w-auto" : undefined} aria-label={variant === "toolbar" ? "المدينة" : undefined}
+    <Select id={`${idPrefix}-city`} className={variant === "toolbar" ? "min-w-0 sm:!w-auto" : undefined} aria-label={variant === "toolbar" ? "المدينة" : undefined}
       value={cityId ?? ""} onChange={(e) => onChange(Number(e.target.value), false)}>
       {region?.cities.map((c) => (
         <option key={c.id} value={c.id}>{c.districts != null ? `${c.name} (${c.districts} حياً)` : c.name}</option>

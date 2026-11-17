@@ -53,7 +53,7 @@ function AccountView({ detail }: { detail: AccountDetail }) {
           </Table>
         </div>
         <CardBody className="text-xs text-text-3">
-          كل مقعد يدخل من جهاز واحد في نفس الوقت: الدخول من جهاز جديد يُخرج القديم تلقائياً. لنقل الاشتراك لرقم آخر عدّل رقم المقعد، فيخرج الجهاز القديم فوراً.
+          <p className="max-w-[80ch]">كل مقعد يدخل من جهاز واحد في نفس الوقت: الدخول من جهاز جديد يُخرج القديم تلقائياً. لنقل الاشتراك لرقم آخر عدّل رقم المقعد، فيخرج الجهاز القديم فوراً.</p>
         </CardBody>
       </Card>
       {seatModal ? <SeatModal accountId={a.id} seat={seatModal === "new" ? null : seatModal} onClose={() => setSeatModal(null)} /> : null}
@@ -90,7 +90,8 @@ function AccountForm({ detail, onSaved }: { detail: AccountDetail; onSaved: () =
       <CardHeader><span className="font-bold text-heading">الاشتراك</span></CardHeader>
       <CardBody className="space-y-4">
         {a.status === "expired" ? <Note tone="warn">انتهى الاشتراك في {dateOnly(a.expiresAt)}. مدّد التاريخ ليرجع الدخول.</Note> : null}
-        <div className="grid gap-4 sm:grid-cols-3">
+        {/* from ~1400px the six fields sit on one row, sized to what each holds (the seat count is a short number, notes the longest) */}
+        <div className="grid gap-4 sm:grid-cols-3 min-[87.5rem]:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.6fr)]">
           <FormGroup label="اسم الحساب" htmlFor="name" error={err?.errors?.name?.[0]}>
             <Input id="name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={120} />
           </FormGroup>
