@@ -1,7 +1,10 @@
-"""Laws that come from the Real Estate General Authority (rega.gov.sa) instead of the Bureau of Experts.
+"""Laws and regulations that come from the Real Estate General Authority (rega.gov.sa) instead of the Bureau of Experts:
+the brokerage law, and REGA's executive and organising regulations (اللوائح), which hold the practical rules a broker
+asks about (the brokerage contract, commission, deposits, off-plan escrow, ads…).
 
-REGA pages show the royal decree, then the articles as plain text: each article starts with a line "المادة ..."
-and the law ends where the site's cookie notice begins. The text is stored as HTML entities, so it is unescaped first.
+REGA pages show the decree, then the articles as plain text: each article starts with a line "المادة ..." (some
+pages end it with ":") and the text ends where the site's cookie notice begins. The text is stored as HTML entities,
+so it is unescaped first.
 
 usage: python tools/legal/fetch_rega.py   → data/legal/articles_rega.jsonl
 """
@@ -17,8 +20,21 @@ LAWS = [
     ("rega_brokerage_law", "نظام الوساطة العقارية",
      "https://rega.gov.sa/الأنظمة-والقرارات/الأنظمة-واللوائح-والأدلة/الأنظمة/نظام-الوساطة-العقارية/"),
 ]
+REGS = "https://rega.gov.sa/الأنظمة-والقرارات/الأنظمة-واللوائح-والأدلة/اللوائح/"
+LAWS += [(key, title, f"{REGS}{title.replace(' ', '-')}/") for key, title in [
+    ("rega_brokerage_reg", "اللائحة التنفيذية لنظام الوساطة العقارية"),
+    ("rega_offplan_reg", "اللائحة التنفيذية لنظام بيع وتأجير مشروعات عقارية على الخارطة"),
+    ("rega_units_reg", "اللائحة التنفيذية لنظام ملكية الوحدات العقارية وفرزها وإدارتها"),
+    ("rega_registration_reg", "اللائحة التنفيذية لنظام التسجيل العيني للعقار"),
+    ("rega_contributions_reg", "اللائحة التنفيذية لنظام المساهمات العقارية"),
+    ("rega_foreign_reg", "اللائحة التنفيذية لنظام تملك غير السعوديين للعقار"),
+    ("rega_auctions_reg", "اللائحة التنظيمية للمزادات العقارية"),
+    ("rega_advisory_reg", "اللائحة التنظيمية للاستشارات والتحليلات العقارية"),
+    ("rega_ads_reg", "اللائحة التنظيمية للتسويق والإعلانات العقارية"),
+]]
 END = "ملفات تعريف الارتباط"
-LABEL = re.compile(r"^المادة [^\n:]{2,40}$")
+LABEL = re.compile(r"^المادة [^\n:]{2,40}:?$")
+ANNEX = re.compile(r"^ملحق\s*(\(\s*\d+\s*\))?\s*:")   # an annex (e.g. the table of fines) is its own entry, not part of the last article
 
 
 def fetch(key: str, url: str) -> str:
@@ -43,14 +59,15 @@ def lines_of(h: str) -> list[str]:
 
 def parse(h: str):
     lines = lines_of(h)
-    start = next(i for i, l in enumerate(lines) if l == "المادة الأولى")
+    start = next(i for i, l in enumerate(lines) if l.rstrip(":") == "المادة الأولى")
     rows, label, body = [], None, []
     for l in lines[start:]:
         if l.startswith(END):
             break
-        if LABEL.match(l):
+        if LABEL.match(l) or ANNEX.match(l):
             if label: rows.append((label, "\n".join(body)))
-            label, body = l, []
+            label = re.sub(r"\s*:\s*", ": ", re.sub(r"\s+", " ", l.rstrip(":.").replace("( ", "(").replace(" )", ")")))
+            body = []
         else:
             body.append(l)
     if label: rows.append((label, "\n".join(body)))

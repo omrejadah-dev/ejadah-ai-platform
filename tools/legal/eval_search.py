@@ -23,7 +23,10 @@ def load_cases():
     lines = [l for l in (HERE / "eval_questions.csv").read_text(encoding="utf-8").splitlines() if l and not l.startswith("#")]
     cases = list(csv.DictReader(lines))
     for c in cases:
-        c["articles"] = {int(s) for s in c["articles"].split()}
+        # several sources may answer (a law's article, or the regulation article that details it): "law A | law B", "14 | 19"
+        laws = [s.strip() for s in c["law"].split("|")] if c["law"] else []
+        arts = [s.strip() for s in c["articles"].split("|")]
+        c["answers"] = [(law, {int(s) for s in (arts[i] if i < len(arts) else "").split()}) for i, law in enumerate(laws)]
     return cases
 
 
@@ -34,8 +37,8 @@ def load_articles():
 
 def check_cases(cases, articles):
     laws = {t for t, _ in articles}
-    bad = [f"{c['id']}: unknown law" for c in cases if c["law"] and c["law"] not in laws]
-    bad += [f"{c['id']}: no article {s}" for c in cases for s in c["articles"] if (c["law"], s) not in articles]
+    bad = [f"{c['id']}: unknown law {law}" for c in cases for law, _ in c["answers"] if law not in laws]
+    bad += [f"{c['id']}: no article {s} in {law}" for c in cases for law, seqs in c["answers"] for s in seqs if (law, s) not in articles]
     if bad:
         sys.exit("eval_questions.csv does not match the library:\n  " + "\n  ".join(bad))
 
@@ -74,7 +77,7 @@ ORDER BY q.id, s.pos;"""
 def position(case, found):
     """1-based rank of the first expected article in the results, or None."""
     for i, (title, seq) in enumerate(found, 1):
-        if title == case["law"] and (not case["articles"] or seq in case["articles"]):
+        if any(title == law and (not seqs or seq in seqs) for law, seqs in case["answers"]):
             return i
     return None
 
@@ -126,13 +129,11 @@ def write_review_sheet(cases, articles, path):
     for c in cases:
         if not c["law"]:
             ws.append([c["id"], c["question"], "خارج الأنظمة العقارية", "المتوقع: «لم أجد»", "", "", "", ""])
-        elif not c["articles"]:
-            ws.append([c["id"], c["question"], c["law"], "أي مادة من النظام", "", "", "", ""])
         else:
-            seqs = sorted(c["articles"])
-            ws.append([c["id"], c["question"], c["law"],
-                       "\n".join(articles[(c["law"], s)]["label"] for s in seqs),
-                       "\n\n".join(f"{articles[(c['law'], s)]['label']}: {articles[(c['law'], s)]['text']}" for s in seqs),
+            refs = [(law, s) for law, seqs in c["answers"] for s in sorted(seqs)]
+            ws.append([c["id"], c["question"], "\n".join(law for law, _ in c["answers"]),
+                       "\n".join(f"{law} / {articles[(law, s)]['label']}" for law, s in refs) or "أي مادة من النظام",
+                       "\n\n".join(f"{law} / {articles[(law, s)]['label']}: {articles[(law, s)]['text']}" for law, s in refs),
                        "", "", ""])
     for col, width in zip("ABCDEFGH", (8, 40, 30, 24, 90, 14, 26, 30)):
         ws.column_dimensions[col].width = width
