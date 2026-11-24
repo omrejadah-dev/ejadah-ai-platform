@@ -30,9 +30,83 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  # The pricing engine on synthetic deals with known answers (db/tests): every search level, the range, as-of dates,
+  # the size adjustment. A throwaway database built from the migrations.
+  pricing-engine:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_USER: ejadah, POSTGRES_PASSWORD: ejadah_dev, POSTGRES_DB: ejadah_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U ejadah" --health-interval 5s --health-timeout 5s --health-retries 20
+    env: { DATABASE_URL: "postgresql://ejadah:ejadah_dev@localhost:5432/ejadah_test" }
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash db/tests/run.sh
+
+  # The real site end to end in a browser (frontend/e2e.mjs): login -> price -> range -> recommendations -> «تسعيراتي».
+  # API + web as in production, on the test accounts and the same synthetic deals; no Claude key, so the trial writer.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_USER: ejadah, POSTGRES_PASSWORD: ejadah_dev, POSTGRES_DB: ejadah_e2e }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U ejadah" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: "postgresql://ejadah:ejadah_dev@localhost:5432/ejadah_e2e"
+      PUPPETEER_SKIP_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "10.0.x" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Database (schema, test accounts, synthetic deals)
+        run: |
+          bash db/migrate.sh --dev
+          psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 < db/tests/pricing_fixtures.sql
+          psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 < db/reload/refresh.sql > /dev/null
+      - name: API on :5020
+        run: |
+          dotnet publish backend/Ejadah.Ai.Api/Ejadah.Ai.Api.csproj -c Release -o /tmp/api
+          cd /tmp/api && nohup dotnet Ejadah.Ai.Api.dll > /tmp/api.log 2>&1 &
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://127.0.0.1:5020
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=ejadah;Password=ejadah_dev;Database=ejadah_e2e"
+          Embedder__Url: http://127.0.0.1:1/
+      - name: Web on :3000 (the standalone build, as in frontend/Dockerfile)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          cp -r apps/web/public apps/web/.next/standalone/apps/web/public
+          cd apps/web/.next/standalone && PORT=3000 HOSTNAME=127.0.0.1 nohup node apps/web/server.js > /tmp/web.log 2>&1 &
+      - name: Wait for both
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:5020/ready > /dev/null && curl -sf -o /dev/null http://127.0.0.1:3000/login && exit 0
+            sleep 2
+          done
+          echo "not up"; tail -50 /tmp/api.log /tmp/web.log; exit 1
+      - name: End-to-end test
+        working-directory: frontend
+        run: npm run e2e
+        env: { BASE_URL: "http://127.0.0.1:3000", E2E_TOTAL: "500000", CHROME: /usr/bin/google-chrome }
+      - name: Logs and screenshot on failure
+        if: failure()
+        run: tail -80 /tmp/api.log /tmp/web.log || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: e2e-failure, path: frontend/e2e-failure.png, if-no-files-found: ignore }
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [backend, frontend]
+    needs: [backend, frontend, pricing-engine, e2e]   # a failing test stops the deploy
     runs-on: ubuntu-latest
     concurrency: { group: deploy, cancel-in-progress: false }   # one deploy at a time, none dropped
     steps:

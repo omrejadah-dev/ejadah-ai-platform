@@ -11,7 +11,8 @@
     "build": "npm run build -w @ejadah/web",
     "start": "npm run start -w @ejadah/web",
     "typecheck": "npm run typecheck -w @ejadah/web",
-    "lint": "npm run lint -w @ejadah/web"
+    "lint": "npm run lint -w @ejadah/web",
+    "e2e": "node e2e.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^24.43.1"

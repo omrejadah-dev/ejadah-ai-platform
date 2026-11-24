@@ -41,3 +41,5 @@ laws/
 
 # local Python environments for tools/
 .venv/
+frontend/e2e-failure.png
+frontend/apps/web/.next-e2e/

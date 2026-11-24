@@ -3,7 +3,8 @@
 --
 --   SELECT market.estimate_price(city_id, district_id, 'land', 600, 'plan_norm', 'plot_norm' [, as_of]);
 --
--- Constants live in market.pricing_tiers / market.pricing_params (migration 020); the range's width in market.pricing_band (028).
+-- Constants live in market.pricing_tiers / market.pricing_params (migration 020); the range's width in market.pricing_band (028);
+-- the size adjustment's coefficients in market.mv_size_beta (029).
 -- Returns jsonb: ppm_estimate/low/high, total_estimate/low/high, confidence, level_used, window_months, sample_size,
 -- sample_median_age_months, time_adjustment_pct, iqr_ratio, comparables[], district_trend[], city_trend[], plot_history,
 -- data_as_of. With too few deals: confidence 'insufficient', level_used null, city_trend, plot_history, data_as_of.
@@ -64,6 +65,7 @@ DECLARE
   v_window       int;
   v_scope        text;
   v_n            int := 0;
+  v_n_all        int := 0;   -- deals in the tier before trimming the tails: what "enough deals" counts
   v_vals         numeric[];
   v_w            numeric[];
   v_ppm          numeric;  v_p25 numeric;  v_p75 numeric;
@@ -78,6 +80,7 @@ DECLARE
   v_iqr_ratio    numeric;
   v_cut          date;   -- deals must be strictly before this date
   v_mv_cut       date;   -- monthly views: whole months before this date only
+  v_beta         numeric := 0;   -- size elasticity of price per m2 for this city and type (029), 0 where not measured
 BEGIN
   SELECT * INTO prm FROM market.pricing_params;
   IF NOT FOUND THEN RAISE EXCEPTION 'market.pricing_params is empty (migration 020)'; END IF;
@@ -95,6 +98,9 @@ BEGIN
     WHERE city_id = p_city_id AND plan_norm = p_plan_norm AND plot_norm = p_plot_norm AND is_market_deal AND deal_date < v_cut;
   END IF;
 
+  SELECT beta INTO v_beta FROM market.mv_size_beta WHERE city_id = p_city_id AND type_group = p_type_group;
+  v_beta := coalesce(v_beta, 0);
+
   -- Tiered search: the first tier with enough deals wins
   FOR r IN SELECT level AS lvl, window_months AS win, min_sample AS min_n, scope FROM market.pricing_tiers ORDER BY ord
   LOOP
@@ -102,21 +108,26 @@ BEGIN
     CONTINUE WHEN r.scope IN ('district','adjacent') AND p_district_id IS NULL;
 
     SELECT array_agg(ppm ORDER BY ppm), array_agg(w ORDER BY ppm), count(*),
-           market.wquantile(array_agg(age ORDER BY ppm), array_agg(w ORDER BY ppm), 0.5)
-      INTO v_vals, v_w, v_n, v_med_age
+           market.wquantile(array_agg(age ORDER BY ppm), array_agg(w ORDER BY ppm), 0.5), max(n_all)
+      INTO v_vals, v_w, v_n, v_med_age, v_n_all
     FROM (
+      -- each deal's price per m2 scaled to the subject's size: x (p_area / deal area)^beta (029)
       -- weight: recency halves every recency_half_life_months; size halves per doubling of the size gap to p_area
-      SELECT d.ppm,
+      SELECT d.ppm * power(p_area / d.area_m2, v_beta) AS ppm,
              ((v_as_of - d.deal_date) / prm.days_per_month)::numeric AS age,
              (power(0.5, ((v_as_of - d.deal_date) / prm.days_per_month) / prm.recency_half_life_months)
               * power(0.5, abs(ln(d.area_m2 / p_area)) / ln(2)))::numeric AS w,
-             percent_rank() OVER (ORDER BY d.ppm) AS pr,
+             -- position by row, not rank: equal prices share a rank, so a run of equal lowest prices was all cut
+             -- (and equal highest ones never were); deal_id only makes the order of equals repeatable
+             (row_number() OVER (ORDER BY d.ppm * power(p_area / d.area_m2, v_beta), d.deal_id) - 1)::numeric
+               / greatest(count(*) OVER () - 1, 1) AS pr,
              count(*) OVER () AS n_all
       FROM market.pricing_deals(p_city_id, p_type_group, r.scope, p_district_id, p_plan_norm, r.win, v_as_of, v_cut) d
     ) s
     WHERE n_all <= prm.trim_min_sample OR (pr >= prm.trim_low AND pr <= prm.trim_high);   -- trim tails of a large sample
 
-    IF v_n >= r.min_n THEN
+    -- enough deals = before trimming: trimming drops odd prices, it should not turn a sufficient sample into too few
+    IF v_n_all >= r.min_n THEN
       v_level := r.lvl; v_window := r.win; v_scope := r.scope;
       EXIT;
     END IF;
