@@ -2,8 +2,8 @@
 -- Up to 150 market deals per city x type from the last 6 months of data (Riyadh, Jeddah, Dammam),
 -- picked by a stable hash so reruns use the same deals. Each is later priced with p_as_of = its own date.
 CREATE SCHEMA IF NOT EXISTS eval;
-DROP TABLE IF EXISTS eval.bt_result;
-DROP TABLE IF EXISTS eval.bt_sample;
+DROP TABLE IF EXISTS eval.bt_result CASCADE;   -- with the report views built on it (eval.bt, eval.bt2)
+DROP TABLE IF EXISTS eval.bt_sample CASCADE;
 CREATE TABLE eval.bt_sample AS
 SELECT deal_id, city_id, district_id, type_group, area_m2, ppm, plan_norm, deal_date, chunk
 FROM (

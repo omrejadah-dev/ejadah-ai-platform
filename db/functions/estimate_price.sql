@@ -3,7 +3,7 @@
 --
 --   SELECT market.estimate_price(city_id, district_id, 'land', 600, 'plan_norm', 'plot_norm' [, as_of]);
 --
--- Constants live in market.pricing_tiers / market.pricing_params (migration 020).
+-- Constants live in market.pricing_tiers / market.pricing_params (migration 020); the range's width in market.pricing_band (028).
 -- Returns jsonb: ppm_estimate/low/high, total_estimate/low/high, confidence, level_used, window_months, sample_size,
 -- sample_median_age_months, time_adjustment_pct, iqr_ratio, comparables[], district_trend[], city_trend[], plot_history,
 -- data_as_of. With too few deals: confidence 'insufficient', level_used null, city_trend, plot_history, data_as_of.
@@ -67,6 +67,7 @@ DECLARE
   v_vals         numeric[];
   v_w            numeric[];
   v_ppm          numeric;  v_p25 numeric;  v_p75 numeric;
+  v_lo           numeric;  v_hi  numeric;   -- the range shown: estimate x the measured band (market.pricing_band, 028)
   v_med_age      numeric;  -- months
   v_adj          numeric := 0;
   v_conf         text;
@@ -166,6 +167,14 @@ BEGIN
      AND v_window <= prm.conf_medium_max_window AND v_iqr_ratio <= prm.conf_medium_max_iqr_ratio THEN 'medium'
     ELSE 'low' END;
 
+  -- The range: estimate x the 10th / 90th percentile of actual/estimate measured in the backtest for this confidence
+  -- (and type, when calibrated for it), so it holds ~80% of actual prices. The quartiles only feed the confidence.
+  SELECT v_ppm * b.lo_ratio, v_ppm * b.hi_ratio INTO v_lo, v_hi
+  FROM market.pricing_band b
+  WHERE b.confidence = v_conf AND (b.type_group = p_type_group OR b.type_group IS NULL)
+  ORDER BY b.type_group IS NULL LIMIT 1;
+  v_lo := coalesce(v_lo, v_p25); v_hi := coalesce(v_hi, v_p75);
+
   -- Comparables: 10 most recent deals in the scope that was used
   SELECT jsonb_agg(c ORDER BY (c->>'date') DESC) INTO v_comps FROM (
     SELECT jsonb_build_object('date', d.deal_date, 'district', ds.name, 'plan', d.plan_raw, 'plot', d.plot_raw,
@@ -179,11 +188,11 @@ BEGIN
 
   RETURN jsonb_build_object(
     'ppm_estimate',    round(v_ppm / prm.ppm_round) * prm.ppm_round,
-    'ppm_low',         round(v_p25 / prm.ppm_round) * prm.ppm_round,
-    'ppm_high',        round(v_p75 / prm.ppm_round) * prm.ppm_round,
+    'ppm_low',         round(v_lo / prm.ppm_round) * prm.ppm_round,
+    'ppm_high',        round(v_hi / prm.ppm_round) * prm.ppm_round,
     'total_estimate',  round(v_ppm * p_area / prm.total_round) * prm.total_round,
-    'total_low',       round(v_p25 * p_area / prm.total_round) * prm.total_round,
-    'total_high',      round(v_p75 * p_area / prm.total_round) * prm.total_round,
+    'total_low',       round(v_lo * p_area / prm.total_round) * prm.total_round,
+    'total_high',      round(v_hi * p_area / prm.total_round) * prm.total_round,
     'confidence',      v_conf,
     'level_used',      v_level,
     'window_months',   v_window,

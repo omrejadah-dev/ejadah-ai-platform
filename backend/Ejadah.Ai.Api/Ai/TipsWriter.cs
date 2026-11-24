@@ -38,8 +38,6 @@ public static class TipsFacts
             ["final_price"] = pricing?.FinalTotal ?? Num("total_estimate"),
             ["final_ppm"] = pricing?.FinalPpm ?? Num("ppm_estimate"),
             ["market_price"] = pricing?.MarketTotal ?? Num("total_estimate"),
-            ["range_total"] = new JsonArray(Num("total_low"), Num("total_high")),
-            ["range_ppm"] = new JsonArray(Num("ppm_low"), Num("ppm_high")),
             ["confidence"] = engine.TryGetProperty("confidence", out var c) ? c.GetString() switch
                 { "high" => "عالية", "medium" => "متوسطة", "low" => "منخفضة", _ => "غير كافية" } : null,
             ["sample_size"] = Num("sample_size"),
@@ -48,9 +46,14 @@ public static class TipsFacts
             ["data_as_of"] = engine.TryGetProperty("data_as_of", out var d) ? d.GetString() : null,
         };
 
-        // where the final price per m² sits between the low and high of similar deals: 0% = at the low end, 100% = the high
-        if (Num("ppm_low") is { } lo && Num("ppm_high") is { } hi && hi > lo && f["final_ppm"]?.GetValue<decimal>() is { } ppm)
-            f["place_in_range_pct"] = Math.Round((ppm - lo) / (hi - lo) * 100);
+        // the expected range is measured (028: 8 in 10 actual prices fall inside it); at low confidence the screen shows
+        // «السعر تقريبي» instead, so the tips get no range either
+        if (f["confidence"]?.GetValue<string>() is "عالية" or "متوسطة")
+        {
+            f["expected_range_total"] = new JsonArray(Num("total_low"), Num("total_high"));
+            f["expected_range_ppm"] = new JsonArray(Num("ppm_low"), Num("ppm_high"));
+            f["expected_range_meaning"] = "النطاق الذي يقع فيه السعر الفعلي في 8 من كل 10 حالات، مقاساً على صفقات حقيقية";
+        }
 
         if (pricing is not null)
         {
@@ -104,10 +107,8 @@ public sealed class MockTipsWriter : ITipsWriter
     {
         string N(string k) => f[k] is JsonValue v ? v.GetValue<decimal>().ToString("#,0") : "";
         var tips = new List<Tip>();
-        if (f["range_total"] is JsonArray r && r.Count == 2)
-            tips.Add(new($"السعر التقديري {N("final_price")} ريال، وأغلب الصفقات المشابهة بين {r[0]!.GetValue<decimal>():#,0} و{r[1]!.GetValue<decimal>():#,0} ريال.", ["final_price", "range_total"]));
-        if (f["place_in_range_pct"] is not null)
-            tips.Add(new($"سعر المتر {N("final_ppm")} ريال، ويقع عند {N("place_in_range_pct")}% من نطاق الصفقات المشابهة.", ["final_ppm", "place_in_range_pct"]));
+        if (f["expected_range_total"] is JsonArray r && r.Count == 2)
+            tips.Add(new($"السعر التقديري {N("final_price")} ريال، والسعر الفعلي يقع غالباً (8 من 10 حالات) بين {r[0]!.GetValue<decimal>():#,0} و{r[1]!.GetValue<decimal>():#,0} ريال.", ["final_price", "expected_range_total"]));
         if (f["district_change_1y_pct"] is not null)
             tips.Add(new($"سعر المتر في الحي تغيّر {N("district_change_1y_pct")}% عن السنة السابقة.", ["district_change_1y_pct"]));
         if (f["district_vs_city_pct"] is not null)
@@ -131,7 +132,7 @@ public sealed class AnthropicTipsWriter(AnthropicClient client, string model) : 
         - كل نصيحة جملة أو جملتان قصيرتان (حتى 25 كلمة) بالعربية الفصحى المبسطة، وتذكر رقماً واحداً على الأقل من المرفق كما هو
           (أرقام غربية 0-9). كل نصيحة فكرة مختلفة، ولا تكرر الرقم نفسه في نصيحتين. ابدأ بالفكرة العملية لا بسرد الأرقام.
         - refs: مفاتيح المرفق التي أخذت منها أرقام النصيحة بالضبط (مثل "district_change_1y_pct"). لا تكتب نصيحة بلا رقم خلفها.
-        - لا تحسب أرقاماً جديدة ولا تتوقع أسعاراً مستقبلية، ولا توصِ صراحة بالشراء أو البيع. صف الاتجاه وموقع السعر من الحي والنطاق.
+        - لا تحسب أرقاماً جديدة ولا تتوقع أسعاراً مستقبلية، ولا توصِ صراحة بالشراء أو البيع. صف الاتجاه وموقع السعر من الحي والمدينة.
         - أمثلة لما يفيد: أين يقع السعر من نطاق الصفقات المشابهة وكيف يُستعمل في التفاوض، اتجاه الحي مقارنة بالمدينة، ما رفع السعر
           أو خفّضه من التعديلات، حجم العينة والثقة وما يعنيانه للعميل، تاريخ آخر صفقة مشابهة.
         - لا تذكر أسماء أشخاص أو جهات أو أرقام صفقات، ولا مصطلحات إنجليزية، ولا تضف إخلاء مسؤولية (النظام يضيفه).

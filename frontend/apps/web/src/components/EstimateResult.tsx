@@ -87,8 +87,13 @@ function EstimateView({ data }: { data: EstimateResponse }) {
               <div className="space-y-5">
                 <div className="space-y-5">
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Stat label="نطاق سعر السوق" value={`${fmt(res.total_low)} – ${fmt(res.total_high)}`} unit="ريال" />
-                    <Stat label="سعر المتر في السوق" value={fmt(res.ppm_estimate)} unit={`من ${fmt(res.ppm_low)} إلى ${fmt(res.ppm_high)}`} />
+                    {/* the range is measured (8 in 10 actual prices fall inside it); at low confidence it is too wide to help */}
+                    {res.confidence === "low" ? (
+                      <Stat label="النطاق المتوقع" value="السعر تقريبي" unit="الصفقات قليلة أو متباينة، فلا نعرض نطاقاً" />
+                    ) : (
+                      <Stat label="النطاق المتوقع" value={`${fmt(res.total_low)} – ${fmt(res.total_high)}`} unit="ريال · يقع فيه السعر الفعلي في 8 من كل 10 حالات" />
+                    )}
+                    <Stat label="سعر المتر في السوق" value={fmt(res.ppm_estimate)} unit={res.confidence === "low" ? "ريال للمتر" : `من ${fmt(res.ppm_low)} إلى ${fmt(res.ppm_high)}`} />
                     <Stat label="العينة" value={`${fmt(res.sample_size)} صفقة`} unit={`${LEVEL_TEXT[res.level_used ?? 2]} · ${res.window_months} شهراً`} />
                   </div>
                   <ul className="space-y-1 text-xs text-text-3">
