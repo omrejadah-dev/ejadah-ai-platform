@@ -133,15 +133,17 @@ function Column({ s, all, type, color, failed }: { s?: DistrictSummary; all: Dis
         <Row label="النمو خلال 5 سنوات"><ChangePill value={five(s)} suffix="" /> <Star on={best(five)} /></Row>
       </dl>
       <div className="border-t border-border bg-surface-2 px-5 py-3">
-        <div className="mb-2 text-xs text-text-3">سعر المتر لكل الأنواع</div>
-        <div className="grid grid-cols-2 gap-2">
-          {TYPES.map((k) => {
+        {/* the chosen type is already the big number above: here the other types, with how many deals stand behind each */}
+        <div className="mb-2 text-xs text-text-3">{type === "all" ? "سعر المتر لكل الأنواع" : "الأنواع الأخرى في الحي"}</div>
+        <div className="space-y-1">
+          {TYPES.filter((k) => k !== type).map((k) => {
             const r = s.types.find((x) => x.type === k);
             return (
-              <div key={k} className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5", k === type && "bg-surface ring-1 ring-border-md")}>
+              <div key={k} className="flex items-center gap-2 px-1 py-1">
                 <i className={cn("ti text-base text-gold-d", TYPE_ICON[k])} aria-hidden />
                 <span className="text-xs text-text-2">{TYPE_LABEL[k]}</span>
-                <b className="ms-auto text-xs text-heading tabular-nums">{r?.ppm ? fmt(r.ppm) : "—"}</b>
+                <span className="ms-auto text-[11px] text-text-3 tabular-nums">{r?.n12 ? `${fmt(r.n12)} صفقة` : "لا صفقات"}</span>
+                <b className="w-14 text-end text-xs text-heading tabular-nums">{r?.ppm ? fmt(r.ppm) : "—"}</b>
               </div>
             );
           })}
