@@ -13,6 +13,8 @@ import { MapLegend, Seg, YearPlayer } from "@/components/MapControls";
 
 /** Map height: shorter on phones; on wide screens it grows with the window so the whole card fits the first screen (from 105rem = 1680px the bars above it are one row). */
 const MAP_HEIGHT = "h-[440px] sm:h-[600px] xl:h-[clamp(600px,calc(100dvh-300px),820px)] min-[105rem]:h-[clamp(600px,calc(100dvh-245px),860px)]";
+/** Picking (market page): shorter, so the comparison under it is in view. */
+const PICK_HEIGHT = "h-[380px] sm:h-[460px] xl:h-[520px]";
 
 const DistrictMap = dynamic(() => import("@/components/DistrictMap").then((m) => m.DistrictMap), {
   ssr: false,
@@ -22,9 +24,19 @@ const DistrictMap = dynamic(() => import("@/components/DistrictMap").then((m) =>
 /** GET /api/map/cities: regions (busiest first) → their cities that have district polygons. */
 type MapRegion = PickerRegion & { deals: number; cities: { id: number; name: string; districts: number; deals: number }[] };
 
-export function MarketMap() {
+/** The price map (home page). With `pick` it becomes a picker (market page): clicking a district toggles it instead of
+ *  opening its panel, and picked districts are filled with their comparison colour; `type`/`onType` then come from the
+ *  page and `startCityId` opens the city of the first picked district. */
+export function MarketMap({ pick, type: typeProp, onType, startCityId }: {
+  pick?: { ids: number[]; colors: string[]; onToggle: (p: DistrictProps) => void };
+  type?: MapType;
+  onType?: (t: MapType) => void;
+  startCityId?: number | null;
+} = {}) {
   const [pickedCity, setCityId] = useState<number | null>(null);
-  const [type, setType] = useState<MapType>("land");
+  const [ownType, setOwnType] = useState<MapType>("land");
+  const type = typeProp ?? ownType;
+  const setType = onType ?? setOwnType;
   const [metric, setMetric] = useState<Metric>("ppm");
   const [period, setPeriod] = useState<Period>("recent");
   const [playing, setPlaying] = useState(false);
@@ -33,7 +45,7 @@ export function MarketMap() {
 
   const regions = useQuery({ queryKey: ["map-cities"], queryFn: () => api<MapRegion[]>("/api/map/cities"), staleTime: 60 * 60_000 });
   // until the user picks, the busiest city is the default (derived, not copied into state)
-  const cityId = pickedCity ?? busiestCityId(regions.data);
+  const cityId = pickedCity ?? startCityId ?? busiestCityId(regions.data);
   const region = regions.data?.find((r) => r.cities.some((c) => c.id === cityId))?.region ?? "";
 
   const map = useQuery({
@@ -48,6 +60,7 @@ export function MarketMap() {
     staleTime: 30 * 60_000,
   });
 
+  const marked = useMemo(() => (pick ? new Map(pick.ids.map((id, i) => [id, pick.colors[i]])) : undefined), [pick]);
   const valueOf = useCallback((p: DistrictProps) => valueFor(p, period, metric), [period, metric]);
   const regionValue = useCallback((r: RegionProps) => valueFor(r, period, metric), [period, metric]);
   // the regions are few: rank them within the shown period so the gap between big and small regions stays readable
@@ -96,7 +109,7 @@ export function MarketMap() {
       {/* very wide screens (from 1680px, where both fit on one line): filters and the year slider share one bar (the slider alone would span 1400px) */}
       <div className="rounded-t-[var(--radius-lg)] min-[105rem]:flex min-[105rem]:flex-wrap min-[105rem]:items-center min-[105rem]:border-b min-[105rem]:border-border min-[105rem]:bg-surface-2">
       <div className="flex flex-wrap items-center gap-2 rounded-t-[var(--radius-lg)] border-b border-border bg-surface-2 px-4 py-3 min-[105rem]:shrink-0 min-[105rem]:border-b-0">
-        <span className="w-full font-bold text-heading sm:me-2 sm:w-auto">خريطة الأسعار</span>
+        <span className="w-full font-bold text-heading sm:me-2 sm:w-auto">{pick ? "اضغط على الأحياء في الخريطة لمقارنتها" : "خريطة الأسعار"}</span>
         {/* phones: region and city share one row half and half; from sm they sit inline like the rest of the bar */}
         <div className="grid w-full grid-cols-2 gap-2 sm:contents">
           <CityPicker variant="toolbar" idPrefix="map" regions={regions.data ?? []} cityId={cityId}
@@ -106,17 +119,20 @@ export function MarketMap() {
         <Seg label="المقياس" value={metric} onChange={setMetric} options={[["ppm", "سعر المتر"], ["n12", "عدد الصفقات"]]} />
       </div>
 
-      <YearPlayer first={first} last={last} period={period} playing={playing} onToggle={togglePlay}
-        onPeriod={(p) => { setPlaying(false); setPeriod(p); }} className="min-[105rem]:min-w-[320px] min-[105rem]:flex-1 min-[105rem]:border-b-0" />
+      {/* picking compares the latest prices, so no years to play through */}
+      {pick ? null : (
+        <YearPlayer first={first} last={last} period={period} playing={playing} onToggle={togglePlay}
+          onPeriod={(p) => { setPlaying(false); setPeriod(p); }} className="min-[105rem]:min-w-[320px] min-[105rem]:flex-1 min-[105rem]:border-b-0" />
+      )}
       </div>
 
       {/* district selected (lg+): map beside the panel, the trend chart across the full width under both, so the two columns end together */}
       <div className={cn("grid items-start gap-0", selected && "lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]")}>
         <div className="p-3">
         <div className="relative isolate">
-          <DistrictMap data={map.data} valueOf={valueOf} scale={scale} tooltip={tooltip} selectedId={selected?.id ?? null} onSelect={setSelected}
+          <DistrictMap data={map.data} valueOf={valueOf} scale={scale} tooltip={tooltip} selectedId={selected?.id ?? null} onSelect={pick ? pick.onToggle : setSelected} marked={marked}
             regions={overview.data} regionValue={regionValue} regionScale={regionScale} regionTooltip={regionTooltip} currentRegion={region} onRegion={goRegion} onLevel={setKingdom}
-            className={MAP_HEIGHT} />
+            className={pick ? PICK_HEIGHT : MAP_HEIGHT} />
           {map.data ? (
             <MapLegend
               title={[metric === "ppm" ? "وسيط سعر المتر" : "عدد الصفقات", MAP_TYPE_LABEL[type], kingdom ? "المناطق" : "", periodLabel].filter(Boolean).join(" · ")}

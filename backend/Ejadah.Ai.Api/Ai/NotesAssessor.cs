@@ -151,6 +151,14 @@ public static class AiRegistration
                 : new AnthropicLegalAnswerer(sp.GetRequiredService<AnthropicClient>(), legalModel);
             return new ResilientLegalAnswerer(inner, AiGuard.FromConfig(config, "Legal", 25));
         });
+
+        services.AddSingleton<ITipsWriter>(sp =>
+        {
+            ITipsWriter inner = string.IsNullOrWhiteSpace(key)
+                ? new MockTipsWriter()
+                : new AnthropicTipsWriter(sp.GetRequiredService<AnthropicClient>(), config["Anthropic:TipsModel"] ?? model);
+            return new ResilientTipsWriter(inner, AiGuard.FromConfig(config, "Tips", 20));   // spec 8: 20 s
+        });
         return services;
     }
 }

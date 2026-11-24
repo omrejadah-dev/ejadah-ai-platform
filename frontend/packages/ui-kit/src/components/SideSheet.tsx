@@ -139,7 +139,9 @@ export function SideSheet({
           <h2 id={titleId} className="m-0 flex-1 text-[15px] font-semibold text-text">
             {title}
           </h2>
-          <ModalClose onClick={onClose} aria-label="إغلاق" />
+          <ModalClose onClick={onClose} aria-label="إغلاق">
+            ×
+          </ModalClose>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
         {footer ? (

@@ -33,6 +33,10 @@ public static class EstimateEndpoints
             return Results.Ok(new EstimateResponse(id, req, doc.RootElement.Clone(), null, row.DurationMs ?? 0) { CreatedAt = row.CreatedAt, Pricing = pricing });
         }).WithSummary("قراءة تسعير محفوظ");
 
+        g.MapPost("/{id:guid}/tips", Tips.HandleAsync)
+         .RequireAuthorization(Capabilities.TipsGenerate).RequireRateLimiting(RateLimits.Estimate)
+         .WithSummary("نصائح لك: تُولَّد مرة وتُحفظ مع التسعير، ويُسمح بإعادة التوليد مرة واحدة");
+
         g.MapGet("/", async (int? limit, HttpContext http, Db db, CancellationToken ct) =>
             Results.Ok(await db.QueryAsync<ValuationSummary>(
                 """

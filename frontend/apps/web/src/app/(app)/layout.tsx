@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn, QueryErrorState, Spinner } from "@platform/ui-kit";
 import { api, ApiError, can, type Me } from "@/lib/api";
-import { ROLE_LABEL } from "@/lib/ui";
+import { initials, ROLE_LABEL } from "@/lib/ui";
 import { NAV, ROUTES } from "@/lib/routes";
 import { MeContext } from "@/providers/MeProvider";
 import { PageTitle } from "@/components/Breadcrumbs";
@@ -65,7 +65,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) => section === href || (href !== "/" && section.startsWith(href));
   const displayName = u.name ?? u.email;
   // first letter of the first two words, skipping "ال" (عمر باموسى → عب، مدير النظام → من)
-  const initials = (u.name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.replace(/^ال(?=.)/, "")[0]).join("") || "؟";
 
   async function logout() {
     await api("/api/auth/logout", { method: "POST", retry: false }).catch(() => {});
@@ -105,10 +104,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="relative ms-auto">
               <button ref={menuButton} type="button" onClick={() => setMenu((m) => !m)} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-row-hover"
                 aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}>
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gold-soft text-sm font-extrabold text-gold-d">{initials}</span>
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gold-soft text-sm font-extrabold text-gold-d">{initials(u.name)}</span>
                 <span className="hidden text-start leading-tight sm:block">
                   <span className="block text-sm font-bold text-heading">{displayName}</span>
-                  <span className="block text-[11px] text-text-3">{u.accountName ?? ROLE_LABEL[u.role]}</span>
+                  <span className="block text-[11px] text-text-3">{ROLE_LABEL[u.role]}</span>
                 </span>
                 <i className={cn("ti text-sm text-text-3", menu ? "ti-chevron-up" : "ti-chevron-down")} aria-hidden />
               </button>
@@ -129,7 +128,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="mx-auto w-full max-w-[1600px] px-4 py-6 pb-24 md:px-6 md:pb-8 xl:px-8">{children}</main>
+          <main className="w-full px-4 py-6 pb-24 md:px-6 md:pb-8 xl:px-8">{children}</main>
         </div>
 
         <nav style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface md:hidden">

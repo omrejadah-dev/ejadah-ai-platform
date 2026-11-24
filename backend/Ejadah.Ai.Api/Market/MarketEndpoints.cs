@@ -6,6 +6,8 @@ namespace Ejadah.Ai.Api.Market;
 
 public sealed record CityDto(int Id, string Name, string Region, long Deals);
 public sealed record DistrictDto(int Id, string Name, long NMarketDeals);
+/// <summary>A district found across the Kingdom, with the city and region it belongs to.</summary>
+public sealed record PlaceDto(int Id, string Name, int CityId, string City, string Region, long NMarketDeals);
 public sealed record MetaDto(DateOnly DataAsOf, long MarketDeals, long AllDeals);
 
 public static class MarketEndpoints
@@ -38,6 +40,17 @@ public static class MarketEndpoints
                 new { cityId, q = string.IsNullOrWhiteSpace(q) ? null : q.Trim(), limit = Math.Clamp(limit ?? 20, 1, 100) }, ct);
             return Results.Ok(rows);
         }).WithSummary("بحث الأحياء الموحّدة داخل مدينة");
+
+        // the pricing page: type the district, the city and region come with it (024); no text = suggestions (025)
+        g.MapGet("/districts", async (string? q, int? limit, Db db, CancellationToken ct) =>
+        {
+            var text = (q ?? "").Trim();
+            if (text.Length > 60) return Results.Ok(Array.Empty<PlaceDto>());
+            var rows = await db.QueryAsync<PlaceDto>(
+                "select id, name, city_id, city, region, n_market_deals from market.search_districts_all(@text, @limit)",
+                new { text, limit = Math.Clamp(limit ?? 12, 1, 30) }, ct);
+            return Results.Ok(rows);
+        }).WithSummary("بحث الأحياء في كل المدن المفعّلة، مع المدينة والمنطقة؛ بدون نص: الأحياء الأكثر صفقات في أكبر المدن");
 
         g.MapGet("/districts/{districtId:int}/history", async (int districtId, string type, Db db, CancellationToken ct) =>
         {

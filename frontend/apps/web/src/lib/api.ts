@@ -73,7 +73,7 @@ export type Me = {
   kind: "seat" | "admin";
   id: string;
   accountId: string | null;
-  role: "broker" | "office" | "investor" | "developer" | "admin";
+  role: "broker" | "investor" | "developer" | "admin";
   email: string;
   name: string | null;
   isOwner: boolean;
@@ -86,6 +86,8 @@ export const can = (me: Pick<Me, "capabilities">, cap: string) => me.capabilitie
 
 export type City = { id: number; name: string; region: string; deals: number };
 export type District = { id: number; name: string; nMarketDeals: number };
+/** A district found across the Kingdom (GET /api/districts?q=), with its city and region. */
+export type Place = District & { cityId: number; city: string; region: string };
 export type PropertyType = "land" | "villa" | "apartment" | "building";
 /** The map also shows the four types together. */
 export type MapType = PropertyType | "all";
@@ -106,6 +108,8 @@ export type EstimateRequest = {
 };
 export type Comparable = { date: string; district: string | null; plan: string | null; plot: string | null; area: number; ppm: number; price: number };
 export type TrendPoint = { year: number; ppm_median: number; n_deals: number };
+/** POST /api/estimates/{id}/tips: «نصائح لك», saved with the valuation; `canRegenerate` until it was written again once. */
+export type EstimateTips = { tips: { text: string; refs: string[] }[]; provider: string; generatedAt: string; canRegenerate: boolean; disclaimer: string };
 export type EstimateResult = {
   ppm_estimate?: number; ppm_low?: number; ppm_high?: number;
   total_estimate?: number; total_low?: number; total_high?: number;
@@ -137,8 +141,3 @@ export const isPropertyType = (v: string | null | undefined): v is PropertyType 
 export const MAP_TYPE_LABEL: Record<MapType, string> = { all: "الكل", ...TYPE_LABEL };
 export const CONFIDENCE_LABEL: Record<EstimateResult["confidence"], string> = { high: "ثقة عالية", medium: "ثقة متوسطة", low: "ثقة منخفضة", insufficient: "بيانات غير كافية" };
 
-/** GET /api/districts/{id}/history answers in camelCase; the trend chart reads the estimate's snake_case points. Mapped here only. */
-type HistoryRow = { year: number; ppmMedian: number; nDeals: number };
-export const districtHistory = (districtId: number, type: PropertyType) =>
-  api<HistoryRow[]>(`/api/districts/${districtId}/history?type=${type}`)
-    .then((rows): TrendPoint[] => rows.map((r) => ({ year: r.year, ppm_median: r.ppmMedian, n_deals: r.nDeals })));

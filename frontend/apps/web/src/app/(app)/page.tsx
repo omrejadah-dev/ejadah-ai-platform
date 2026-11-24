@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Card, CardBody, CardHeader } from "@platform/ui-kit";
 import { api, CONFIDENCE_LABEL, TYPE_LABEL, type PropertyType, type ValuationSummary } from "@/lib/api";
@@ -10,6 +11,7 @@ import { confidenceTone } from "@/lib/ui";
 import { MarketMap } from "@/components/MarketMap";
 import { FEATURES } from "@/lib/features";
 import { EmptyLine, ListSkeleton, QueryView } from "@/components/QueryView";
+import { SavedEstimateModal } from "@/components/EstimateResult";
 
 const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
   { type: "land", icon: "ti-map-2", hint: "قطعة أرض سكنية أو تجارية" },
@@ -21,6 +23,7 @@ const TYPES: { type: PropertyType; icon: string; hint: string }[] = [
 export default function HomePage() {
   const me = useMe();
   const recent = useQuery({ queryKey: ["estimates", 3], queryFn: () => api<ValuationSummary[]>("/api/estimates?limit=3"), enabled: FEATURES.estimate });
+  const [open, setOpen] = useState<ValuationSummary | null>(null);   // a recent estimate, over the page
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-extrabold text-heading">مرحباً {me.name ?? ""}</h2>
@@ -53,7 +56,7 @@ export default function HomePage() {
               <ul className="divide-y divide-border">
                 {list.map((v) => (
                   <li key={v.id}>
-                    <Link href={`/estimate/${v.id}`} className="flex items-center justify-between gap-3 py-3 hover:bg-row-hover">
+                    <button type="button" onClick={() => setOpen(v)} className="flex w-full items-center justify-between gap-3 py-3 text-start hover:bg-row-hover">
                       <div>
                         <div className="font-bold text-text">{TYPE_LABEL[v.typeGroup]} · {v.district ?? v.city} · {fmt(v.areaM2)} م²</div>
                         <div className="text-xs text-text-3">{dateTime(v.createdAt)}</div>
@@ -62,7 +65,7 @@ export default function HomePage() {
                         <div className="font-extrabold text-heading">{fmt(v.totalEstimate)} ريال</div>
                         <Badge tone={confidenceTone(v.confidence)}>{CONFIDENCE_LABEL[v.confidence]}</Badge>
                       </div>
-                    </Link>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -72,6 +75,7 @@ export default function HomePage() {
       </Card>
       </div>
       ) : null}
+      {open ? <SavedEstimateModal id={open.id} title={`${TYPE_LABEL[open.typeGroup]} · ${fmt(open.areaM2)} م²`} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

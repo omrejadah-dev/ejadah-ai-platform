@@ -9,7 +9,7 @@ import { TrendChart } from "@/components/TrendChart";
 import { CenteredSpinner, QueryView } from "@/components/QueryView";
 import { FEATURES } from "@/lib/features";
 
-type Summary = {
+export type DistrictSummary = {
   id: number; name: string; cityId: number; city: string; dataAsOf: string;
   types: { type: MapType; n12: number; ppm: number | null }[];
   trend: TrendPoint[];
@@ -17,7 +17,9 @@ type Summary = {
 };
 
 /** Panel and trend chart share this query, so one request serves both. */
-const useDistrictSummary = (districtId: number, type: MapType) => useQuery({ queryKey: ["district-summary", districtId, type], queryFn: () => api<Summary>(`/api/districts/${districtId}/summary?type=${type}`) });
+export const districtSummaryQuery = (districtId: number, type: MapType) =>
+  ({ queryKey: ["district-summary", districtId, type], queryFn: () => api<DistrictSummary>(`/api/districts/${districtId}/summary?type=${type}`) });
+export const useDistrictSummary = (districtId: number, type: MapType) => useQuery(districtSummaryQuery(districtId, type));
 
 export function DistrictPanel({ districtId, type, onClose }: { districtId: number; type: MapType; onClose: () => void }) {
   const q = useDistrictSummary(districtId, type);
@@ -28,8 +30,8 @@ export function DistrictPanel({ districtId, type, onClose }: { districtId: numbe
   );
 }
 
-function PanelBody({ s, type, onClose }: { s: Summary; type: MapType; onClose: () => void }) {
-  const estimateHref = `/estimate/new?type=${type === "all" ? "land" : type}&cityId=${s.cityId}&districtId=${s.id}&districtName=${encodeURIComponent(s.name)}`;
+function PanelBody({ s, type, onClose }: { s: DistrictSummary; type: MapType; onClose: () => void }) {
+  const estimateHref = `/estimate/new?type=${type === "all" ? "land" : type}&cityId=${s.cityId}&districtId=${s.id}&districtName=${encodeURIComponent(s.name)}&cityName=${encodeURIComponent(s.city)}`;
   const t = s.types.find((x) => x.type === type);
 
   return (
@@ -74,15 +76,15 @@ function PanelBody({ s, type, onClose }: { s: Summary; type: MapType; onClose: (
   );
 }
 
-/** Wide trend chart shown under the map (and the panel, on wide screens) for the selected district.
- *  TrendChart scales its text with its width, so the chart is capped and centred: at ~880px the axis labels stay near body size. */
+/** Wide trend chart shown under the map (and the panel, on wide screens) for the selected district. It spans the whole
+ *  card: TrendChart draws at its real width, so the labels keep their size however wide it gets. */
 export function DistrictTrend({ districtId, type, highlightYear }: { districtId: number; type: MapType; highlightYear?: number }) {
   const q = useDistrictSummary(districtId, type);
   return (
     <QueryView q={q} errorLine="تعذّر تحميل اتجاه الأسعار" loading={<CenteredSpinner className="h-[260px] py-0" />}>
       {(s) => (
         <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-          <div className="mx-auto max-w-[880px]">
+          <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4">
               <div className="text-sm font-bold text-heading">اتجاه سعر المتر · {MAP_TYPE_LABEL[type]} · {s.name}</div>
               <div className="text-[11px] text-text-3">وسيط سنوي من صفقات وزارة العدل</div>

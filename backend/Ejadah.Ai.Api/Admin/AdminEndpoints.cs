@@ -6,33 +6,27 @@ using static Ejadah.Ai.Api.Infrastructure.Problems;
 namespace Ejadah.Ai.Api.Admin;
 
 /// <summary>
-/// Admin panel (PLAN.md phase F): overview, accounts and their seats, sign-outs, and the legal questions log.
-/// Moving a subscription to another person is a seat email change here, and the admin sets or resets passwords; there is
+/// Admin panel (PLAN.md phase F): accounts and their login, sign-outs, and the legal questions log.
+/// One account = one login (027: no seats); the login is a row of identity.seats, which sign-in uses. Moving a
+/// subscription to another person is a login email change here, and the admin sets or resets passwords; there is
 /// no self-service yet. Suspending, disabling, a new email or a new password revokes the sessions at once; an access token already issued lives out its 15 minutes.
 /// Each change and its audit row commit together.
 /// </summary>
 public static class AdminEndpoints
 {
-    public sealed record DayDto(DateOnly Day, int Estimates, int Legal);
-    public sealed record OverviewDto(int AccountsActive, int AccountsSuspended, int AccountsExpired, int ExpiringIn30Days,
-                                     int Seats, int ActiveSessions, int EstimatesToday, int Estimates7d, int LegalToday, int Legal7d,
-                                     int AiCalls7d, int AiFailures7d)
-    {
-        public IReadOnlyList<DayDto> Days { get; init; } = [];
-    }
 
-    public sealed record PlanDto(int Id, string Code, string Name, string Role, int Seats, int DailyEstimateLimit, int DurationDays, decimal? PriceSar);
+    public sealed record PlanDto(int Id, string Code, string Name, string Role, int DailyEstimateLimit, int DurationDays, decimal? PriceSar);
 
-    public sealed record AccountDto(Guid Id, string Name, string Role, int? PlanId, string? PlanName, int SeatsTotal, int SeatsUsed,
+    public sealed record AccountDto(Guid Id, string Name, string Role, int? PlanId, string? PlanName,
                                     string Status, DateOnly StartsAt, DateOnly ExpiresAt, DateTime CreatedAt, string? OwnerEmail,
                                     DateTime? LastSeenAt, int Estimates30d, int Legal30d, string? Notes);
     public sealed record SeatDto(Guid Id, string Email, string? DisplayName, bool IsOwner, string Status, DateTime CreatedAt,
                                  DateTime? LastSeenAt, bool Online, string? Ip, string? UserAgent, int Estimates30d, int Legal30d);
-    public sealed record AccountDetailDto(AccountDto Account, IReadOnlyList<SeatDto> Seats);
+    /// <summary>The account and its one login (null only if it was never created).</summary>
+    public sealed record AccountDetailDto(AccountDto Account, SeatDto? Login);
 
-    public sealed record CreateAccount(string Name, int PlanId, int? SeatsTotal, DateOnly? ExpiresAt, string OwnerEmail, string OwnerPassword, string? OwnerName, string? Notes);
-    public sealed record UpdateAccount(string Name, int PlanId, int SeatsTotal, string Status, DateOnly ExpiresAt, string? Notes);
-    public sealed record AddSeat(string Email, string Password, string? DisplayName);
+    public sealed record CreateAccount(string Name, int PlanId, DateOnly? ExpiresAt, string OwnerEmail, string OwnerPassword, string? OwnerName, string? Notes);
+    public sealed record UpdateAccount(string Name, int PlanId, string Status, DateOnly ExpiresAt, string? Notes);
     public sealed record UpdateSeat(string Email, string? DisplayName, string Status, string? Password);   // Password: only to reset it
 
     public sealed record LegalQuestionDto(Guid Id, DateTime CreatedAt, string Question, string Answer, string Provider, int Cited,
@@ -40,8 +34,7 @@ public static class AdminEndpoints
 
     // status: identity.v_account_status (019) — past its end date counts as expired even while the row still says active
     private const string AccountSql = $"""
-        select a.id, a.name, a.role, a.plan_id, p.name as plan_name, a.seats_total,
-               (select count(*) from identity.seats s where s.account_id = a.id)::int as seats_used,
+        select a.id, a.name, a.role, a.plan_id, p.name as plan_name,
                st.status, a.starts_at, a.expires_at, a.created_at,
                (select s.email from identity.seats s where s.account_id = a.id and s.is_owner order by s.created_at limit 1) as owner_email,
                (select max(se.last_seen_at) from identity.sessions se join identity.seats s on s.id = se.principal_id
@@ -70,36 +63,8 @@ public static class AdminEndpoints
     {
         var g = app.MapGroup("/api/admin").WithTags("Admin").RequireAuthorization(Capabilities.Admin);
 
-        // ---- overview ----------------------------------------------------------------------------
-        g.MapGet("/overview", async (Db db, CancellationToken ct) =>
-        {
-            var o = await db.SingleOrDefaultAsync<OverviewDto>($"""
-                select
-                  (select count(*) from identity.v_account_status where status = '{AccountStatuses.Active}')::int as accounts_active,
-                  (select count(*) from identity.v_account_status where status = '{AccountStatuses.Suspended}')::int as accounts_suspended,
-                  (select count(*) from identity.v_account_status where status = '{AccountStatuses.Expired}')::int as accounts_expired,
-                  (select count(*) from identity.accounts a join identity.v_account_status st on st.account_id = a.id
-                    where st.status = '{AccountStatuses.Active}' and a.expires_at < current_date + 30)::int as expiring_in30_days,
-                  (select count(*) from identity.seats)::int as seats,
-                  (select count(*) from identity.sessions where principal_kind = '{PrincipalKinds.Seat}' and revoked_at is null and expires_at > now())::int as active_sessions,
-                  (select count(*) from app.valuations where created_at >= current_date)::int as estimates_today,
-                  (select count(*) from app.valuations where created_at > now() - interval '7 days')::int as estimates7d,
-                  (select count(*) from app.legal_questions where created_at >= current_date)::int as legal_today,
-                  (select count(*) from app.legal_questions where created_at > now() - interval '7 days')::int as legal7d,
-                  (select count(*) from ops.ai_calls where created_at > now() - interval '7 days')::int as ai_calls7d,
-                  (select count(*) from ops.ai_calls where created_at > now() - interval '7 days' and not ok)::int as ai_failures7d
-                """, null, ct);
-            var days = await db.QueryAsync<DayDto>("""
-                select d::date as day,
-                       (select count(*) from app.valuations v where v.created_at >= d and v.created_at < d + interval '1 day')::int as estimates,
-                       (select count(*) from app.legal_questions q where q.created_at >= d and q.created_at < d + interval '1 day')::int as legal
-                from generate_series(current_date - 13, current_date, interval '1 day') d order by d
-                """, null, ct);
-            return Results.Ok(o! with { Days = days });
-        }).WithSummary("نظرة عامة: الاشتراكات والاستخدام آخر 14 يوماً");
-
         g.MapGet("/plans", (Db db, CancellationToken ct) =>
-            db.QueryAsync<PlanDto>("select id, code, name, role, seats, daily_estimate_limit, duration_days, price_sar from identity.plans_catalog order by id", null, ct))
+            db.QueryAsync<PlanDto>("select id, code, name, role, daily_estimate_limit, duration_days, price_sar from identity.plans_catalog order by id", null, ct))
          .WithSummary("الباقات");
 
         // ---- accounts ------------------------------------------------------------------------------
@@ -117,9 +82,9 @@ public static class AdminEndpoints
         {
             var a = await db.SingleOrDefaultAsync<AccountDto>(AccountSql + " where a.id = @id", new { id }, ct);
             if (a is null) return Results.NotFound();
-            var seats = await db.QueryAsync<SeatDto>(SeatSql + " where s.account_id = @id order by s.is_owner desc, s.created_at", new { id }, ct);
-            return Results.Ok(new AccountDetailDto(a, seats));
-        }).WithSummary("حساب ومقاعده");
+            var login = await db.SingleOrDefaultAsync<SeatDto>(SeatSql + " where s.account_id = @id", new { id }, ct);
+            return Results.Ok(new AccountDetailDto(a, login));
+        }).WithSummary("حساب وبيانات دخوله");
 
         g.MapPost("/accounts", async (CreateAccount body, HttpContext http, Db db, CancellationToken ct) =>
         {
@@ -128,10 +93,8 @@ public static class AdminEndpoints
             if (!Credentials.TryNormalizeEmail(body.OwnerEmail, out var email)) return Invalid("ownerEmail", "بريد إلكتروني صحيح");
             if (!Credentials.IsValidPassword(body.OwnerPassword)) return Invalid("ownerPassword", Credentials.PasswordRule);
             var plan = await db.SingleOrDefaultAsync<PlanDto>(
-                "select id, code, name, role, seats, daily_estimate_limit, duration_days, price_sar from identity.plans_catalog where id = @PlanId", new { body.PlanId }, ct);
+                "select id, code, name, role, daily_estimate_limit, duration_days, price_sar from identity.plans_catalog where id = @PlanId", new { body.PlanId }, ct);
             if (plan is null) return Invalid("planId", "اختر باقة");
-            var seats = body.SeatsTotal ?? plan.Seats;
-            if (seats is < 1 or > 100) return Invalid("seatsTotal", "عدد المقاعد بين 1 و100");
             var expires = body.ExpiresAt ?? DateOnly.FromDateTime(DateTime.Today).AddDays(plan.DurationDays);
             if (await EmailTaken(db, email, null, ct)) return Taken();
 
@@ -142,70 +105,42 @@ public static class AdminEndpoints
                 {
                     var id = await tx.ScalarAsync<Guid>("""
                         with a as (
-                          insert into identity.accounts (name, role, plan_id, seats_total, expires_at, notes)
-                          values (@name, @role, @planId, @seats, @expires, @notes) returning id)
+                          insert into identity.accounts (name, role, plan_id, expires_at, notes)
+                          values (@name, @role, @planId, @expires, @notes) returning id)
                         insert into identity.seats (account_id, email, password_hash, display_name, is_owner)
                         select id, @email, crypt(@password, gen_salt('bf', 10)), @ownerName, true from a returning account_id
-                        """, new { name, role = plan.Role, planId = plan.Id, seats, expires, notes = Clean(body.Notes), email, password = body.OwnerPassword, ownerName = Clean(body.OwnerName) ?? name }, ct);
-                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, adminId, "admin.account.created", id.ToString(), http, new { name, plan = plan.Code, seats, expires, email }, ct);
+                        """, new { name, role = plan.Role, planId = plan.Id, expires, notes = Clean(body.Notes), email, password = body.OwnerPassword, ownerName = Clean(body.OwnerName) ?? name }, ct);
+                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, adminId, "admin.account.created", id.ToString(), http, new { name, plan = plan.Code, expires, email }, ct);
                     return id;
                 }, ct);
                 return Results.Ok(new { id });
             }
             catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation) { return Taken(); }
-        }).WithSummary("حساب جديد مع مقعد المالك");
+        }).WithSummary("حساب جديد مع بيانات دخوله");
 
         g.MapPut("/accounts/{id:guid}", async (Guid id, UpdateAccount body, HttpContext http, Db db, CancellationToken ct) =>
         {
             var name = body.Name?.Trim() ?? "";
             if (name.Length is < 2 or > 120) return Invalid("name", "اكتب اسم الحساب");
             if (body.Status is not (AccountStatuses.Active or AccountStatuses.Suspended)) return Invalid("status", "الحالة: فعّال أو موقوف");
-            if (body.SeatsTotal is < 1 or > 100) return Invalid("seatsTotal", "عدد المقاعد بين 1 و100");
 
             var adminId = http.User.PrincipalId();
             return await db.InTransactionAsync(async tx =>
             {
-                // the account row lock keeps a seat from being added between this count and the update
                 if (!await LockAccount(tx, id, ct)) return Results.NotFound();
-                var used = await tx.ScalarAsync<int>("select count(*)::int from identity.seats where account_id = @id", new { id }, ct);
-                if (body.SeatsTotal < used) return Invalid("seatsTotal", $"في الحساب {used} مقاعد، احذف مقعداً أولاً");
-
                 var n = await tx.ExecuteAsync("""
-                    update identity.accounts a set name = @name, plan_id = p.id, role = p.role, seats_total = @SeatsTotal,
+                    update identity.accounts a set name = @name, plan_id = p.id, role = p.role,
                            status = @Status, expires_at = @ExpiresAt, notes = @notes
                     from identity.plans_catalog p where a.id = @id and p.id = @PlanId
-                    """, new { id, name, body.PlanId, body.SeatsTotal, body.Status, body.ExpiresAt, notes = Clean(body.Notes) }, ct);
+                    """, new { id, name, body.PlanId, body.Status, body.ExpiresAt, notes = Clean(body.Notes) }, ct);
                 if (n == 0) return Results.NotFound();
                 if (body.Status == AccountStatuses.Suspended) await RevokeAccount(tx, id, ct);
                 await Audit.WriteAsync(tx, PrincipalKinds.Admin, adminId, "admin.account.updated", id.ToString(), http, body, ct);
                 return Results.NoContent();
             }, ct);
-        }).WithSummary("تعديل الحساب: الباقة، المقاعد، الانتهاء، الإيقاف");
+        }).WithSummary("تعديل الحساب: الباقة، الانتهاء، الإيقاف");
 
-        // ---- seats ---------------------------------------------------------------------------------
-        g.MapPost("/accounts/{id:guid}/seats", async (Guid id, AddSeat body, HttpContext http, Db db, CancellationToken ct) =>
-        {
-            if (!Credentials.TryNormalizeEmail(body.Email, out var email)) return Invalid("email", "بريد إلكتروني صحيح");
-            if (!Credentials.IsValidPassword(body.Password)) return Invalid("password", Credentials.PasswordRule);
-            if (await EmailTaken(db, email, null, ct)) return Taken();
-            try
-            {
-                return await db.InTransactionAsync(async tx =>
-                {
-                    // the account row lock makes two parallel adds count one after the other, so the seat limit holds
-                    if (!await LockAccount(tx, id, ct)) return Results.NotFound();
-                    var room = await tx.SingleOrDefaultAsync<(int Total, int Used)>(
-                        "select seats_total, (select count(*)::int from identity.seats where account_id = @id) from identity.accounts where id = @id", new { id }, ct);
-                    if (room.Used >= room.Total) return Invalid("email", $"كل المقاعد مستخدمة ({room.Total})، زد عدد المقاعد في الحساب أولاً");
-                    var seatId = await tx.ScalarAsync<Guid>(
-                        "insert into identity.seats (account_id, email, password_hash, display_name) values (@id, @email, " + Credentials.HashSql + ", @name) returning id",
-                        new { id, email, password = body.Password, name = Clean(body.DisplayName) }, ct);
-                    await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.added", seatId.ToString(), http, new { account = id, email }, ct);
-                    return Results.Ok(new { id = seatId });
-                }, ct);
-            }
-            catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation) { return Taken(); }
-        }).WithSummary("إضافة مقعد");
+        // ---- the account's login (a row of identity.seats) ---------------------------------------------
 
         g.MapPut("/seats/{id:guid}", async (Guid id, UpdateSeat body, HttpContext http, Db db, CancellationToken ct) =>
         {
@@ -234,20 +169,8 @@ public static class AdminEndpoints
             }
             catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation) { return Taken(); }
             return Results.NoContent();
-        }).WithSummary("تعديل مقعد: نقل الاشتراك لبريد آخر، الاسم، كلمة المرور، التعطيل");
+        }).WithSummary("تعديل الدخول: نقل الاشتراك لبريد آخر، الاسم، كلمة المرور، التعطيل");
 
-        g.MapDelete("/seats/{id:guid}", (Guid id, HttpContext http, Db db, CancellationToken ct) =>
-            db.InTransactionAsync(async tx =>
-            {
-                var seat = await tx.SingleOrDefaultAsync<(string Email, bool IsOwner)>("select email, is_owner from identity.seats where id = @id for update", new { id }, ct);
-                if (seat == default) return Results.NotFound();
-                if (seat.IsOwner) return Results.Problem(title: "لا يُحذف مقعد المالك، انقل الاشتراك لبريد آخر بدلاً من ذلك", statusCode: 409, type: "owner_seat");
-                await RevokeSeat(tx, id, ct);
-                await tx.ExecuteAsync("delete from identity.seats where id = @id", new { id }, ct);
-                await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.deleted", id.ToString(), http, new { seat.Email }, ct);
-                return Results.NoContent();
-            }, ct))
-         .WithSummary("حذف مقعد (غير المالك)");
 
         g.MapPost("/seats/{id:guid}/signout", (Guid id, HttpContext http, Db db, CancellationToken ct) =>
             db.InTransactionAsync(async tx =>
@@ -256,7 +179,7 @@ public static class AdminEndpoints
                 await Audit.WriteAsync(tx, PrincipalKinds.Admin, http.User.PrincipalId(), "admin.seat.signed_out", id.ToString(), http, new { sessions = n }, ct);
                 return Results.Ok(new { sessions = n });
             }, ct))
-         .WithSummary("تسجيل خروج المقعد من جهازه الحالي");
+         .WithSummary("تسجيل خروج الحساب من جهازه الحالي");
 
         // ---- logs ----------------------------------------------------------------------------------
         g.MapGet("/legal-questions", (int? limit, Db db, CancellationToken ct) =>

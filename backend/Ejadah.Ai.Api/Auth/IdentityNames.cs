@@ -11,7 +11,6 @@ public static class PrincipalKinds
 public static class Roles
 {
     public const string Broker = "broker";
-    public const string Office = "office";
     public const string Investor = "investor";
     public const string Developer = "developer";
     public const string Admin = "admin";

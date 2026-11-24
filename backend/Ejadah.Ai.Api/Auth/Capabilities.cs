@@ -21,7 +21,6 @@ public static class Capabilities
     public static IReadOnlyList<string> For(string role, bool isOwner) => role switch
     {
         Roles.Broker => Subscriber,
-        Roles.Office => isOwner ? [.. Subscriber, SeatsManage] : Subscriber,
         Roles.Investor => [.. Subscriber, MarketHistory],
         Roles.Developer => [.. Subscriber, MarketHistory, MarketLargeDeals],
         Roles.Admin => [SeatsManage, Admin],

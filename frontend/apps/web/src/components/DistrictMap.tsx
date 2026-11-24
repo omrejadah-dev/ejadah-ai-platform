@@ -62,7 +62,7 @@ function interactiveLayer<P>(fc: GeoJSON.FeatureCollection, h: { tooltip: (p: P)
 }
 
 export function DistrictMap({
-  data, valueOf, scale, tooltip, selectedId, onSelect, className,
+  data, valueOf, scale, tooltip, selectedId, onSelect, className, marked,
   regions, regionValue, regionScale, regionTooltip, currentRegion, onRegion, onLevel,
 }: {
   data: DistrictCollection | undefined;
@@ -80,18 +80,24 @@ export function DistrictMap({
   currentRegion: string;
   onRegion: (r: RegionProps) => void;
   onLevel?: (kingdom: boolean) => void;
+  /** Districts outlined in their own colour (hex: Leaflet writes it into SVG), e.g. the ones picked for a comparison. */
+  marked?: ReadonlyMap<number, string>;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.GeoJSON | null>(null);
   const cityLayer = useRef<L.GeoJSON | null>(null);
-  const cb = useRef({ onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel });
+  const cb = useRef({ onSelect, valueOf, tooltip, scale, selectedId, marked, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel });
   // latest props for Leaflet's handlers; a layout effect runs after render and before every effect below
   useLayoutEffect(() => {
-    cb.current = { onSelect, valueOf, tooltip, scale, selectedId, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel };
+    cb.current = { onSelect, valueOf, tooltip, scale, selectedId, marked, regionValue, regionScale, regionTooltip, currentRegion, onRegion, regions, onLevel };
   });
 
-  const restyle = (path: L.Path, p: DistrictProps) => paint(path, cb.current.valueOf(p), cb.current.scale, p.id === cb.current.selectedId, 1);
+  const restyle = (path: L.Path, p: DistrictProps) => {
+    paint(path, cb.current.valueOf(p), cb.current.scale, p.id === cb.current.selectedId, 1);
+    const mark = cb.current.marked?.get(p.id);
+    if (mark) { path.setStyle({ color: colors().surface, weight: 3, fillColor: mark, fillOpacity: 0.9 }); (path as L.Path & { bringToFront(): void }).bringToFront(); }
+  };
   const styleRegion = (path: L.Path, r: RegionProps) => paint(path, cb.current.regionValue(r), cb.current.regionScale, r.region === cb.current.currentRegion, 1.2);
   const restyleAll = () => eachFeature(layer.current, restyle);
   const restyleRegions = () => eachFeature(cityLayer.current, styleRegion);
@@ -186,7 +192,7 @@ export function DistrictMap({
 
   // district colours only: cheap, runs on every year / metric / selection change so the play animation stays smooth
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { restyleAll(); }, [valueOf, scale, selectedId]);
+  useEffect(() => { restyleAll(); }, [valueOf, scale, selectedId, marked]);
 
   return <div dir="ltr" ref={el} className={cn("relative isolate z-0 w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-2", className ?? "h-[600px]")} />;
 }
